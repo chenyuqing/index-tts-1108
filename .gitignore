@@ -59,6 +59,9 @@ hf_cache/
 logs/
 outputs/
 prompts/
+test_input/DUB/
+test_input/scripts/
+test_input/voice-reference/
 
 # Temporary files
 temp_*

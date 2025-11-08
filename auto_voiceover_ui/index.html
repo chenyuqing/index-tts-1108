@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <title>Auto Voiceover 控制台</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Auto Voiceover</p>
+      <h1>Markdown → 多主持人自动配音</h1>
+      <p class="subtitle">解析脚本、Dry-run 校验、自动配音一站式完成。</p>
+    </div>
+    <button id="themeToggle" class="ghost">切换主题</button>
+  </header>
+
+  <main>
+    <aside class="side-nav">
+      <button class="nav-link active" data-anchor="panel-input">输入配置</button>
+      <button class="nav-link" data-anchor="panel-dryrun">Dry-run</button>
+    </aside>
+    <div class="layout">
+      <section id="panel-input" class="card panel">
+        <div class="panel-header">
+          <h2>输入/配置</h2>
+          <p>选择脚本、配置、输出目录与模型。</p>
+        </div>
+        <div class="grid">
+          <div class="field">
+            <label>脚本 (.md)</label>
+            <div class="field-input">
+              <input id="scriptPath" type="text" readonly />
+              <button class="ghost" data-browse="script">浏览</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>配置 (.yaml)</label>
+            <div class="field-input">
+              <input id="configPath" type="text" readonly />
+              <button class="ghost" data-browse="config">浏览</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>输出根目录</label>
+            <div class="field-input">
+              <input id="outRoot" type="text" readonly />
+              <button class="ghost" data-browse="outroot">浏览</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>模型目录</label>
+            <div class="field-input">
+              <input id="modelDir" type="text" readonly />
+              <button class="ghost" data-browse="model">浏览</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>脚本语言</label>
+            <select id="language">
+              <option value="auto">自动</option>
+              <option value="zh">中文</option>
+              <option value="en">英文</option>
+            </select>
+          </div>
+          <div class="field checkbox-group">
+            <label><input id="useFp16" type="checkbox" checked /> 启用 FP16</label>
+            <label><input id="pendingOnly" type="checkbox" /> 仅处理未完成</label>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="dryRunBtn" class="secondary">运行 Dry-run</button>
+          <button id="generateBtn" class="primary">开始自动配音</button>
+          <div class="inline-actions">
+            <button id="pauseBtn" class="ghost" disabled>暂停</button>
+            <button id="resumeBtn" class="ghost" disabled>恢复</button>
+            <button id="stopBtn" class="ghost" disabled>停止</button>
+          </div>
+        </div>
+
+        <div class="generate-status">
+          <pre id="generateSummary" class="summary">尚未执行</pre>
+          <div class="logs" id="generateLogs"></div>
+        </div>
+      </section>
+
+      <section id="panel-dryrun" class="card panel" id="dryRunSection">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Step 1</p>
+            <h2>Dry-run 结果</h2>
+          </div>
+          <p class="muted">快速校验脚本结构、主持人、输出路径。</p>
+        </div>
+        <pre id="dryRunSummary" class="summary">尚未执行</pre>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>段落</th>
+                <th>章节</th>
+                <th>主持人</th>
+                <th>情绪</th>
+                <th>输出路径</th>
+              </tr>
+            </thead>
+            <tbody id="dryRunTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="browserModal" class="modal hidden">
+    <div class="modal-content">
+      <header>
+        <h3 id="browserTitle">浏览</h3>
+        <button id="browserClose">×</button>
+      </header>
+      <div class="browser-toolbar">
+        <span id="browserPath"></span>
+        <button id="browserUp" class="secondary">上一级</button>
+      </div>
+      <ul id="browserList"></ul>
+      <footer>
+        <button id="browserCancel" class="secondary">取消</button>
+        <button id="browserSelect" class="primary" disabled>选择</button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    window.__workspaceRoot = "";
+  </script>
+  <script src="/ui/app.js" type="module"></script>
+</body>
+</html>

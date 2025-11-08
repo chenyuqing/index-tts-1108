@@ -1,0 +1,126 @@
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 24px;
+  padding: 0 64px 48px;
+  align-items: flex-start;
+}
+
+.review-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chapter-nav {
+  position: sticky;
+  top: 96px;
+  align-self: flex-start;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+}
+
+.chapter-nav h3 {
+  margin: 0 0 12px;
+}
+
+.chapter-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chapter-nav-list button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  text-align: left;
+  background: rgba(0,0,0,0.05);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.chapter-nav-list button.active,
+.chapter-nav-list button:hover {
+  background-image: var(--accent);
+  color: #0d1117;
+}
+
+.chapter-card {
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--surface);
+}
+
+.chapter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.chapter-header h3 {
+  margin: 0;
+}
+
+.segment-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.segment-row {
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  padding: 12px;
+  background: rgba(255,255,255,0.02);
+}
+
+.segment-row header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.segment-row header h4 {
+  margin: 0;
+}
+
+.segment-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.segment-controls input {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.08);
+  color: var(--fg);
+}
+
+.segment-audio {
+  margin-top: 8px;
+}
+
+.segment-audio.no-audio {
+  color: var(--muted);
+  font-size: 13px;
+}
