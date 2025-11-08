@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import signal
+import threading
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-import logging
 from flask import Flask, jsonify, request, send_from_directory
 from urllib.parse import quote, unquote
 
@@ -19,6 +21,7 @@ from tools.auto_voiceover import (
     synthesize_segments,
     load_manifest,
     merge_manifests,
+    build_review_output_path,
 )
 
 
@@ -41,6 +44,18 @@ class _QuietFilter(logging.Filter):
 
 
 logging.getLogger("werkzeug").addFilter(_QuietFilter())
+
+_original_signal_handler = signal.signal
+
+
+def _thread_safe_signal(signum, handler):
+    if threading.current_thread() is not threading.main_thread():
+        # Skip re-registering signals from worker threads to avoid ValueError.
+        return handler
+    return _original_signal_handler(signum, handler)
+
+
+signal.signal = _thread_safe_signal
 
 
 def _find_fallback_script() -> Optional[Path]:
@@ -71,6 +86,83 @@ def _normalize_out_root(path: Path, episode: str) -> Path:
     if path.name != episode:
         path = (path / episode).resolve()
     return path
+
+
+def _get_tts_instance(model_dir: Path, use_fp16: bool):
+    cfg_path = model_dir / "config.yaml"
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Config file not found in model dir: {cfg_path}")
+
+    with tts_lock:
+        if (
+            tts_cache["instance"] is not None
+            and tts_cache["model_dir"] == str(model_dir)
+            and tts_cache["use_fp16"] == use_fp16
+        ):
+            return tts_cache["instance"]
+
+        from indextts.infer_v2 import IndexTTS2
+
+        instance = IndexTTS2(
+            cfg_path=str(cfg_path),
+            model_dir=str(model_dir),
+            use_fp16=use_fp16,
+        )
+        tts_cache["instance"] = instance
+        tts_cache["model_dir"] = str(model_dir)
+        tts_cache["use_fp16"] = use_fp16
+        return instance
+
+
+def _get_review_tts_instance(model_dir: Path, use_fp16: bool):
+    cfg_path = model_dir / "config.yaml"
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Config file not found in model dir: {cfg_path}")
+
+    with review_tts_lock:
+        if (
+            review_tts_cache["instance"] is not None
+            and review_tts_cache["model_dir"] == str(model_dir)
+            and review_tts_cache["use_fp16"] == use_fp16
+        ):
+            return review_tts_cache["instance"]
+
+        from indextts.infer_v2 import IndexTTS2
+
+        instance = IndexTTS2(
+            cfg_path=str(cfg_path),
+            model_dir=str(model_dir),
+            use_fp16=use_fp16,
+        )
+        review_tts_cache["instance"] = instance
+        review_tts_cache["model_dir"] = str(model_dir)
+        review_tts_cache["use_fp16"] = use_fp16
+        return instance
+
+
+def _clear_tts_cache() -> bool:
+    cleared = False
+    with tts_lock:
+        if tts_cache["instance"] is not None:
+            tts_cache["instance"] = None
+            tts_cache["model_dir"] = None
+            tts_cache["use_fp16"] = None
+            cleared = True
+    with review_tts_lock:
+        if review_tts_cache["instance"] is not None:
+            review_tts_cache["instance"] = None
+            review_tts_cache["model_dir"] = None
+            review_tts_cache["use_fp16"] = None
+            cleared = True
+    if cleared:
+        try:
+            import torch
+
+            if hasattr(torch, "cuda"):
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+    return cleared
 job_lock = Lock()
 job_control = {
     "status": "idle",
@@ -78,6 +170,20 @@ job_control = {
     "logs": [],
 }
 LAST_MANIFEST_PATH: Optional[Path] = None
+tts_lock = Lock()
+tts_infer_lock = Lock()
+tts_cache: Dict[str, Optional[Any]] = {
+    "instance": None,
+    "model_dir": None,
+    "use_fp16": None,
+}
+review_tts_lock = Lock()
+review_tts_infer_lock = Lock()
+review_tts_cache: Dict[str, Optional[Any]] = {
+    "instance": None,
+    "model_dir": None,
+    "use_fp16": None,
+}
 
 
 def request_job_action(action: str) -> None:
@@ -216,6 +322,31 @@ def _build_manifest_summary(manifest: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+@app.post("/api/model/clear")
+def api_model_clear() -> Any:
+    cleared = _clear_tts_cache()
+    return jsonify({"status": "cleared" if cleared else "empty"})
+
+
+@app.get("/api/model/state")
+def api_model_state() -> Any:
+    with tts_lock, review_tts_lock:
+        return jsonify(
+            {
+                "main": {
+                    "loaded": tts_cache["instance"] is not None,
+                    "model_dir": tts_cache["model_dir"],
+                    "use_fp16": tts_cache["use_fp16"],
+                },
+                "review": {
+                    "loaded": review_tts_cache["instance"] is not None,
+                    "model_dir": review_tts_cache["model_dir"],
+                    "use_fp16": review_tts_cache["use_fp16"],
+                },
+            }
+        )
+
+
 @app.get("/api/state")
 def api_state() -> Any:
     return jsonify(job_control)
@@ -347,8 +478,6 @@ def api_generate() -> Any:
         summary = _build_manifest_summary(manifest)
         return jsonify({"error": "missing_speakers", "summary": summary}), 400
 
-    from indextts.infer_v2 import IndexTTS2
-
     with job_lock:
         if job_control["status"] == "running":
             return jsonify({"error": "job_running"}), 409
@@ -363,11 +492,7 @@ def api_generate() -> Any:
         return None
 
     try:
-        tts = IndexTTS2(
-            cfg_path=str(model_dir / "config.yaml"),
-            model_dir=str(model_dir),
-            use_fp16=use_fp16,
-        )
+        tts = _get_tts_instance(model_dir, use_fp16)
 
         job_control["logs"] = []
 
@@ -377,14 +502,15 @@ def api_generate() -> Any:
                 job_control["logs"] = job_control["logs"][-200:]
             print(message)
 
-        manifest, logs = synthesize_segments(
-            manifest,
-            config_data,
-            tts,
-            only_pending=pending_only,
-            control_fn=control_fn,
-            log_cb=log_cb,
-        )
+        with tts_infer_lock:
+            manifest, logs = synthesize_segments(
+                manifest,
+                config_data,
+                tts,
+                only_pending=pending_only,
+                control_fn=control_fn,
+                log_cb=log_cb,
+            )
     except Exception as exc:
         job_control["status"] = "idle"
         job_control["requested"] = None
@@ -438,30 +564,33 @@ def api_segment_regenerate() -> Any:
         language if language and language != "auto" else None,
     )
 
-    from indextts.infer_v2 import IndexTTS2
-
-    tts = IndexTTS2(
-        cfg_path=str(model_dir / "config.yaml"),
-        model_dir=str(model_dir),
-        use_fp16=use_fp16,
-    )
-
-    manifest, logs = synthesize_segments(
-        manifest,
-        config_data,
-        tts,
-        segment_filter=[segment_id],
-        overrides={segment_id: overrides},
-    )
-
-    save_manifest(manifest, manifest_path)
-    global LAST_MANIFEST_PATH
-    LAST_MANIFEST_PATH = manifest_path
-
     entry = next((seg for seg in manifest.get("segments", []) if seg.get("segment_id") == segment_id), None)
+    if entry is None:
+        return jsonify({"error": "segment_not_found"}), 404
+
+    review_path = build_review_output_path(out_root, entry)
+    entry_copy = dict(entry)
+    entry_copy["output_path"] = str(review_path)
+
+    review_manifest = {
+        **manifest,
+        "segments": [entry_copy],
+    }
+
+    tts = _get_review_tts_instance(model_dir, use_fp16)
+
+    with review_tts_infer_lock:
+        review_manifest, logs = synthesize_segments(
+            review_manifest,
+            config_data,
+            tts,
+            segment_filter=[segment_id],
+            overrides={segment_id: overrides},
+        )
+
     audio_url = None
-    if entry and entry.get("output_path") and Path(entry["output_path"]).exists():
-        audio_url = f"/api/audio?path={quote(str(entry['output_path']))}"
+    if Path(review_path).exists():
+        audio_url = f"/api/audio?path={quote(str(review_path))}"
 
     return jsonify({"logs": logs, "audio_url": audio_url})
 
@@ -481,24 +610,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-def _find_fallback_script() -> Optional[Path]:
-    candidate = Path(DEFAULT_SCRIPT)
-    if candidate.exists():
-        return candidate
-    scripts_dir = WORKSPACE_ROOT / "test_input/scripts"
-    if scripts_dir.exists():
-        items = sorted(scripts_dir.glob("*.md"))
-        if items:
-            return items[0]
-    return None
-
-
-def _resolve_script_input(value: Optional[str]) -> Path:
-    if value:
-        candidate = _resolve_path(value)
-        if candidate.exists():
-            return candidate
-    fallback = _find_fallback_script()
-    if fallback:
-        return fallback
-    raise FileNotFoundError("No Markdown script available. Please upload or specify a script.")

@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
+import wave
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -33,9 +35,58 @@ except ImportError:  # pragma: no cover
 EMOTION_KEYWORDS = ("情绪", "语气", "tone", "emotion")
 MANIFEST_VERSION = "0.1"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SEGMENT_TIMEOUT = float(os.getenv("AUTO_VOICEOVER_SEGMENT_TIMEOUT", "300"))
 
 ProgressCallback = Callable[[float, str], None]
 LogCallback = Callable[[str], None]
+
+
+def normalize_segment_text(text: str) -> str:
+    replacements = {
+        "\u2014": " ",
+        "\u2013": " ",
+        "\u2012": " ",
+        "\u2010": " ",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+    }
+    for src, dst in replacements.items():
+        text = text.replace(src, dst)
+    text = text.replace("**", "")
+    text = text.replace("__", "")
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"^\*+\s*", "", text)
+    text = re.sub(r"\s*\*+$", "", text)
+    return text
+
+def detect_language(text: str) -> str:
+    if not text.strip():
+        return "auto"
+    chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
+    latin_chars = len(re.findall(r"[A-Za-z]", text))
+    if chinese_chars == 0 and latin_chars == 0:
+        return "auto"
+    if chinese_chars >= latin_chars:
+        return "zh"
+    return "en"
+
+
+def write_placeholder_wav(path: Path, duration_sec: float = 0.2, sample_rate: int = 16000) -> None:
+    # Add suffix for easier identification
+    target_path = path
+    if path.suffix:
+        target_path = path.with_name(f"{path.stem}_null{path.suffix}")
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    frames = max(1, int(duration_sec * sample_rate))
+    silence = b"\x00\x00" * frames
+    with wave.open(str(target_path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(silence)
+
 
 
 @dataclass
@@ -62,6 +113,7 @@ class ParseResult:
     segments: List[Segment]
     warnings: List[str]
     script_title: Optional[str]
+    language: str
 
 
 class MarkdownScriptParser:
@@ -77,6 +129,8 @@ class MarkdownScriptParser:
 
     def __init__(self, language: Optional[str] = None):
         self.language = language
+        self._text_samples: List[str] = []
+        self._detected_language: Optional[str] = None
 
     def parse(self, script_path: Path) -> ParseResult:
         if not script_path.exists():
@@ -107,6 +161,8 @@ class MarkdownScriptParser:
             text_lines: List[str] = active_segment["lines"]  # type: ignore[index]
             raw_text = "\n".join(text_lines).strip()
             text, emotion_hint = self._extract_emotion_markers(raw_text)
+            text = normalize_segment_text(text)
+            self._text_samples.append(text)
             emotion_text = active_segment.get("emotion")  # type: ignore[attr-defined]
             merged_emotion = _merge_emotions(
                 [emotion_text, emotion_hint]) if emotion_hint or emotion_text else emotion_text
@@ -133,12 +189,14 @@ class MarkdownScriptParser:
             header_match = self.HEADER_PATTERN.match(stripped)
             if header_match:
                 level = len(header_match.group("level"))
+                title_text = header_match.group("title").strip()
                 if level == 1 and not script_title:
-                    script_title = header_match.group("title").strip()
-                else:
+                    script_title = title_text
+                    continue
+                if level == 2:
                     flush_active_segment()
-                    ensure_chapter(header_match.group("title").strip())
-                continue
+                    ensure_chapter(title_text)
+                    continue
 
             if stripped == "---":
                 continue
@@ -186,7 +244,34 @@ class MarkdownScriptParser:
             warnings.append(
                 f"Dangling directives without a following segment: {[d.raw for d in pending_directives]}"
             )
-        return ParseResult(segments=segments, warnings=warnings, script_title=script_title)
+        effective_language = self._resolve_language()
+        for segment in segments:
+            if effective_language == "zh":
+                segment.text = self._localize_names(segment.text)
+            segment.metadata["language"] = effective_language
+        return ParseResult(segments=segments, warnings=warnings, script_title=script_title, language=effective_language)
+
+    def _resolve_language(self) -> str:
+        if self.language and self.language != "auto":
+            return self.language
+        if self._detected_language:
+            return self._detected_language
+        sample_text = " ".join(self._text_samples[:50])
+        detected = detect_language(sample_text)
+        if detected == "auto":
+            detected = "en"
+        self._detected_language = detected
+        return detected
+
+    @staticmethod
+    def _localize_names(text: str) -> str:
+        if not text:
+            return text
+
+        def _replace(match: re.Match[str]) -> str:
+            return "翠花" if match.group(0) == "Larei" else "里奥"
+
+        return re.sub(r"\b(Larei|Leo)\b", _replace, text)
 
     def _build_directive(self, content: str, lineno: int) -> Directive:
         text = content.strip()
@@ -420,7 +505,7 @@ def build_manifest(
     return {
         "episode": episode_name,
         "script_title": parse_result.script_title,
-        "language": parse_result.segments[0].metadata.get("language") if parse_result.segments else None,
+        "language": parse_result.language,
         "output_root": str(out_root),
         "segments": manifest_items,
         "warnings": parse_result.warnings,
@@ -502,6 +587,14 @@ def normalize_out_root(out_root: Path, episode: str) -> Path:
     if out_root.name != episode:
         out_root = (out_root / episode).resolve()
     return out_root
+
+
+def build_review_output_path(out_root: Path, segment: Dict[str, object]) -> Path:
+    base = out_root
+    speaker = segment.get("speaker") or "spk"
+    chapter = segment.get("chapter") or "ch00"
+    filename = f"{segment.get('segment_id')}-{speaker}.wav"
+    return base / "review" / chapter / filename
 
 
 def synthesize_segments(
@@ -587,6 +680,8 @@ def synthesize_segments(
 
     overrides = overrides or {}
     paused = False
+    timeout_enabled = SEGMENT_TIMEOUT > 0
+
     for idx, entry in enumerate(selected_segments, start=1):
         if control_fn:
             while True:
@@ -675,6 +770,7 @@ def synthesize_segments(
         try:
             seg_start = time.time()
             tts.infer(**tts_kwargs)
+
             entry["status"] = "done"
             entry["completed_at"] = datetime.utcnow().isoformat()
             entry["duration_sec"] = round(time.time() - seg_start, 3)

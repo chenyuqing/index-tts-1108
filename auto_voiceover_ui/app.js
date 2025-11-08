@@ -294,6 +294,11 @@ themeToggle.addEventListener("click", () => {
 
 navLinks.forEach((link) => {
   link.addEventListener("click", () => {
+    const targetUrl = link.dataset.link;
+    if (targetUrl) {
+      window.location.href = targetUrl;
+      return;
+    }
     const targetId = link.dataset.anchor;
     const target = document.getElementById(targetId);
     if (!target) return;

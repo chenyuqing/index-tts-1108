@@ -4,6 +4,7 @@ const outRootInput = document.getElementById("outRoot");
 const modelDirInput = document.getElementById("modelDir");
 const languageSelect = document.getElementById("language");
 const loadChaptersBtn = document.getElementById("loadChaptersBtn");
+const clearCacheBtn = document.getElementById("clearCacheBtn");
 const chaptersContainer = document.getElementById("chaptersContainer");
 const chapterNavList = document.getElementById("chapterNavList");
 const chapterIndicator = document.getElementById("chapterIndicator");
@@ -235,56 +236,73 @@ function renderActiveChapter() {
       const row = document.createElement("div");
       row.className = "segment-row";
       row.dataset.segmentId = segment.segment_id;
-      row.innerHTML = `
-        <header>
-          <h4>${segment.segment_id} · ${segment.speaker || ""}</h4>
-          <span>${segment.emotion || ""}</span>
-        </header>
-        <p>${segment.text || ""}</p>
-      `;
+
+      const headerEl = document.createElement("header");
+      const title = document.createElement("h4");
+      title.textContent = `${segment.segment_id} · ${segment.speaker || ""}`;
+      const emotionLabel = document.createElement("span");
+      emotionLabel.textContent = segment.emotion || "";
+      headerEl.appendChild(title);
+      headerEl.appendChild(emotionLabel);
+      row.appendChild(headerEl);
+
+      const textArea = document.createElement("textarea");
+      textArea.className = "segment-text";
+      textArea.value = segment.text || "";
+      textArea.rows = Math.min(8, Math.max(3, Math.ceil((textArea.value.length || 1) / 60)));
+      row.appendChild(textArea);
 
       const controls = document.createElement("div");
       controls.className = "segment-controls";
-      const emotionInput = document.createElement("input");
+      const emotionInput = document.createElement("textarea");
+      emotionInput.className = "segment-emotion";
       emotionInput.placeholder = "自定义情绪，比如：温暖、激情";
       emotionInput.value = segment.emotion || "";
+      emotionInput.rows = 2;
       const regenBtn = document.createElement("button");
       regenBtn.textContent = segment.audio_url ? "重新生成" : "生成";
       regenBtn.className = "primary";
-      regenBtn.addEventListener("click", () => handleRegenerate(segment.segment_id, emotionInput.value, row));
+      regenBtn.dataset.defaultLabel = regenBtn.textContent;
+      regenBtn.addEventListener("click", () =>
+        handleRegenerate(segment.segment_id, emotionInput.value, textArea.value, row, regenBtn)
+      );
       controls.appendChild(emotionInput);
       controls.appendChild(regenBtn);
       row.appendChild(controls);
 
-    const audioWrapper = document.createElement("div");
-    audioWrapper.className = "segment-audio";
-    if (segment.audio_url) {
-      const audio = document.createElement("audio");
-      audio.controls = true;
-      audio.src = segment.audio_url;
-      audioWrapper.appendChild(audio);
-    } else {
-      audioWrapper.textContent = "尚未生成音频";
-      audioWrapper.classList.add("no-audio");
-    }
-    row.appendChild(audioWrapper);
+      const audioWrapper = document.createElement("div");
+      audioWrapper.className = "segment-audio";
+      if (segment.audio_url) {
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = segment.audio_url;
+        audioWrapper.appendChild(audio);
+      } else {
+        audioWrapper.textContent = "尚未生成音频";
+        audioWrapper.classList.add("no-audio");
+      }
+      row.appendChild(audioWrapper);
 
-    list.appendChild(row);
-  });
+      list.appendChild(row);
+    });
 
   card.appendChild(list);
   chaptersContainer.appendChild(card);
 }
 
-async function handleRegenerate(segmentId, emotionText, rowEl) {
+async function handleRegenerate(segmentId, emotionText, textValue, rowEl, buttonEl) {
   rowEl.classList.add("pending");
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.textContent = "合成中…";
+  }
   try {
     const payload = {
       ...basePayload(),
       model_dir: modelDirInput.value,
       segment_id: segmentId,
       manifest_path: manifestPath,
-      overrides: emotionText ? { emotion: emotionText } : {},
+      overrides: buildOverrides(emotionText, textValue),
     };
     const res = await fetchJSON("/api/segment/regenerate", {
       method: "POST",
@@ -296,13 +314,46 @@ async function handleRegenerate(segmentId, emotionText, rowEl) {
         audio.src = `${res.audio_url}&_=${Date.now()}`;
         audio.load();
       }
+      if (buttonEl) {
+        buttonEl.dataset.defaultLabel = "重新生成";
+      }
     }
   } catch (err) {
     alert(`重新生成失败: ${err.message}`);
   } finally {
     rowEl.classList.remove("pending");
+    if (buttonEl) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = buttonEl.dataset.defaultLabel || "重新生成";
+    }
   }
 }
 
+function buildOverrides(emotionText, textValue) {
+  const overrides = {};
+  if (textValue && textValue.trim()) {
+    overrides.text = textValue.trim();
+  }
+  if (emotionText && emotionText.trim()) {
+    overrides.emotion = emotionText.trim();
+  }
+  return overrides;
+}
+
 loadChaptersBtn.addEventListener("click", loadChapters);
+clearCacheBtn.addEventListener("click", handleClearCache);
 loadDefaults();
+
+async function handleClearCache() {
+  clearCacheBtn.disabled = true;
+  clearCacheBtn.textContent = "清理中...";
+  try {
+    const res = await fetchJSON("/api/model/clear", { method: "POST" });
+    alert(res.status === "cleared" ? "模型缓存已清理" : "暂无已加载的模型缓存");
+  } catch (err) {
+    alert(`清理失败: ${err.message}`);
+  } finally {
+    clearCacheBtn.disabled = false;
+    clearCacheBtn.textContent = "清理模型缓存";
+  }
+}

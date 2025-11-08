@@ -32,6 +32,7 @@ dependencies = [
   "cn2an==0.5.22",
   "cython==3.0.7",
   "descript-audiotools==0.7.2",
+  "flask==3.0.3",
   "einops>=0.8.1",
   "ffmpeg-python==0.2.0",
   "g2p-en==2.1.0",

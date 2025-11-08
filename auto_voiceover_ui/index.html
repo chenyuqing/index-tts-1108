@@ -12,13 +12,17 @@
       <h1>Markdown → 多主持人自动配音</h1>
       <p class="subtitle">解析脚本、Dry-run 校验、自动配音一站式完成。</p>
     </div>
-    <button id="themeToggle" class="ghost">切换主题</button>
+    <div class="hero-actions">
+      <a class="primary" href="/review">逐句微调</a>
+      <button id="themeToggle" class="ghost">切换主题</button>
+    </div>
   </header>
 
   <main>
     <aside class="side-nav">
       <button class="nav-link active" data-anchor="panel-input">输入配置</button>
       <button class="nav-link" data-anchor="panel-dryrun">Dry-run</button>
+      <button class="nav-link" data-link="/review">逐句微调</button>
     </aside>
     <div class="layout">
       <section id="panel-input" class="card panel">
@@ -65,11 +69,11 @@
           </div>
           <div class="field checkbox-group">
             <label><input id="useFp16" type="checkbox" checked /> 启用 FP16</label>
-            <label><input id="pendingOnly" type="checkbox" /> 仅处理未完成</label>
+            <label><input id="pendingOnly" type="checkbox" checked /> 仅处理未完成</label>
           </div>
         </div>
         <div class="actions">
-          <button id="dryRunBtn" class="secondary">运行 Dry-run</button>
+          <button id="dryRunBtn" class="primary">运行 Dry-run</button>
           <button id="generateBtn" class="primary">开始自动配音</button>
           <div class="inline-actions">
             <button id="pauseBtn" class="ghost" disabled>暂停</button>
