@@ -23,6 +23,7 @@ from tools.auto_voiceover import (
     merge_manifests,
     build_review_output_path,
 )
+from tools.epub_ingest import convert_epub, DEFAULT_SPEAKER as EPUB_DEFAULT_SPEAKER
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent
@@ -33,6 +34,20 @@ DEFAULT_MODEL_DIR = str(WORKSPACE_ROOT / "checkpoints")
 MANIFEST_DIR = WORKSPACE_ROOT / "outputs/auto_voiceover"
 STATIC_DIR = WORKSPACE_ROOT / "auto_voiceover_ui"
 DEFAULT_BROWSER_ROOT = WORKSPACE_ROOT / "test_input"
+AUDIOBOOK_ROOT = WORKSPACE_ROOT / "test_ebooks"
+AUDIOBOOK_EBOOKS_DIR = AUDIOBOOK_ROOT / "ebooks"
+AUDIOBOOK_MANIFESTS_DIR = AUDIOBOOK_ROOT / "manifests"
+AUDIOBOOK_CONFIG_DIR = AUDIOBOOK_ROOT / "configs"
+AUDIOBOOK_OUTPUT_DIR = AUDIOBOOK_ROOT / "DUB"
+
+for directory in [
+    AUDIOBOOK_ROOT,
+    AUDIOBOOK_EBOOKS_DIR,
+    AUDIOBOOK_MANIFESTS_DIR,
+    AUDIOBOOK_CONFIG_DIR,
+    AUDIOBOOK_OUTPUT_DIR,
+]:
+    directory.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/ui")
 
@@ -207,6 +222,19 @@ def _resolve_path(path_str: Optional[str]) -> Path:
     return candidate
 
 
+def _list_file_entries(directory: Path, suffixes: Optional[tuple[str, ...]] = None) -> List[Dict[str, str]]:
+    entries: List[Dict[str, str]] = []
+    if not directory.exists():
+        return entries
+    for child in sorted(directory.iterdir(), key=lambda p: p.name.lower()):
+        if not child.is_file():
+            continue
+        if suffixes and child.suffix.lower() not in suffixes:
+            continue
+        entries.append({"name": child.name, "path": str(child)})
+    return entries
+
+
 def _serialize_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "segment_id": entry.get("segment_id"),
@@ -228,6 +256,11 @@ def review() -> Any:
     return send_from_directory(app.static_folder, "review.html")
 
 
+@app.route("/audiobook")
+def audiobook() -> Any:
+    return send_from_directory(app.static_folder, "audiobook.html")
+
+
 @app.route("/api/defaults")
 def api_defaults() -> Any:
     script_path = _find_fallback_script() or Path(DEFAULT_SCRIPT)
@@ -239,6 +272,11 @@ def api_defaults() -> Any:
             "model_dir": DEFAULT_MODEL_DIR,
             "language": "auto",
             "workspace_root": str(DEFAULT_BROWSER_ROOT if DEFAULT_BROWSER_ROOT.exists() else WORKSPACE_ROOT),
+            "audiobook_epub_dir": str(AUDIOBOOK_EBOOKS_DIR),
+            "audiobook_manifest_dir": str(AUDIOBOOK_MANIFESTS_DIR),
+            "audiobook_config_dir": str(AUDIOBOOK_CONFIG_DIR),
+            "audiobook_out_root": str(AUDIOBOOK_OUTPUT_DIR),
+            "audiobook_default_speaker": EPUB_DEFAULT_SPEAKER,
         }
     )
 
@@ -246,10 +284,18 @@ def api_defaults() -> Any:
 def _resolve_manifest_path(manifest_path: Optional[str], script_path: Path) -> Path:
     global LAST_MANIFEST_PATH
     if manifest_path:
-        return _resolve_path(manifest_path)
-    if LAST_MANIFEST_PATH and LAST_MANIFEST_PATH.exists():
-        return LAST_MANIFEST_PATH
-    return MANIFEST_DIR / f"{script_path.stem}_manifest.json"
+        resolved_path = _resolve_path(manifest_path)
+        LAST_MANIFEST_PATH = resolved_path
+        return resolved_path
+
+    # Always generate manifest path based on the current script file name
+    # Use the full script name (including language suffix) to avoid conflicts
+    script_name = script_path.name
+    manifest_filename = f"{script_name}_manifest.json"
+    resolved_path = MANIFEST_DIR / manifest_filename
+
+    LAST_MANIFEST_PATH = resolved_path
+    return resolved_path
 
 
 @app.post("/api/listdir")
@@ -292,6 +338,39 @@ def api_listdir() -> Any:
         return jsonify({"error": f"Permission denied: {path}"}), 403
 
     return jsonify({"current_path": str(path), "entries": entries})
+
+
+@app.get("/api/audiobook/resources")
+def api_audiobook_resources() -> Any:
+    return jsonify(
+        {
+            "ebooks": _list_file_entries(AUDIOBOOK_EBOOKS_DIR, (".epub", ".epub3")),
+            "manifests": _list_file_entries(AUDIOBOOK_MANIFESTS_DIR, (".md", ".markdown")),
+            "configs": _list_file_entries(AUDIOBOOK_CONFIG_DIR, (".yaml", ".yml")),
+        }
+    )
+
+
+@app.post("/api/audiobook/convert")
+def api_audiobook_convert() -> Any:
+    data = request.get_json(force=True, silent=True) or {}
+    epub_path = _resolve_path(data.get("epub_path"))
+    speaker = (data.get("speaker") or EPUB_DEFAULT_SPEAKER).strip()
+    out_dir = _resolve_path(data.get("out_dir") or str(AUDIOBOOK_MANIFESTS_DIR))
+    if not epub_path.exists() or not epub_path.is_file():
+        return jsonify({"error": f"EPUB not found: {epub_path}"}), 404
+    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        markdown_path = convert_epub(epub_path, out_dir, speaker or EPUB_DEFAULT_SPEAKER)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(
+        {
+            "markdown_path": str(markdown_path),
+            "title": Path(markdown_path).stem,
+            "speaker": speaker or EPUB_DEFAULT_SPEAKER,
+        }
+    )
 
 
 def _build_manifest_summary(manifest: Dict[str, Any]) -> Dict[str, Any]:

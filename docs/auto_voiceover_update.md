@@ -4,7 +4,7 @@
 
 ## 1. 启动脚本与默认行为
 - `start_auto_voiceover.sh` 负责一键执行 dry-run、启动 Flask UI，并默认使用 `test_input/scripts/what is understanding-hinton-CN.md`。若脚本不存在，会在 `test_input/scripts` 下自动查找首个 `.md` 脚本并提示 fallback 结果；也可以通过参数显式传入。
-- Dry-run 阶段生成的 manifest 会保存到 `outputs/auto_voiceover/<episode>_manifest.json`，输出目录统一为 `<out_root>/<脚本名>/chXX/`，避免与旧数据混淆。
+- Dry-run 阶段生成的 manifest 会保存到 `outputs/auto_voiceover/<脚本文件名>_manifest.json`（包含完整脚本名以避免中英文版本冲突），输出目录统一为 `<out_root>/<脚本名>/chXX/`，避免与旧数据混淆。
 - Flask `/api/defaults`、UI 文件浏览器都复用了相同的 fallback 逻辑，确保“脚本/配置/输出/模型”输入框随时有可见路径，不会出现“目录都是空的”。
 
 ## 2. 全新的 Flask WebUI
