@@ -29,14 +29,14 @@ env/
 env.bak/
 venv.bak/
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -59,9 +59,14 @@ hf_cache/
 logs/
 outputs/
 prompts/
-test_input/DUB/
-test_input/scripts/
-test_input/voice-reference/
+
+# Test input files (user-specific test data)
+test_input/
+
+# Backup files
+backup_parts/
+*.backup
+*.bak
 
 # Temporary files
 temp_*

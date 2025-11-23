@@ -23,7 +23,8 @@ from tools.auto_voiceover import (
     merge_manifests,
     build_review_output_path,
 )
-from tools.epub_ingest import convert_epub, DEFAULT_SPEAKER as EPUB_DEFAULT_SPEAKER
+# from tools.epub_ingest import convert_epub, DEFAULT_SPEAKER as EPUB_DEFAULT_SPEAKER
+EPUB_DEFAULT_SPEAKER = "default"
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent

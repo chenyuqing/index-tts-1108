@@ -209,7 +209,7 @@ class MarkdownScriptParser:
                 continue
 
             speaker_match = self.SPEAKER_PATTERN.match(stripped)
-            if speaker_match and self._looks_like_speaker_header(speaker_match.group("rest")):
+            if speaker_match and self.is_valid_speaker_name(speaker_match.group("name").strip()) and self._looks_like_speaker_header(speaker_match.group("rest")):
                 flush_active_segment()
                 if chapter_id is None:
                     ensure_chapter("ch00")
@@ -311,10 +311,58 @@ class MarkdownScriptParser:
 
     @staticmethod
     def _looks_like_speaker_header(rest: str) -> bool:
+        """改进的speaker头部验证函数"""
+        import re
+
         candidate = rest.strip()
         if not candidate:
             return True
-        return candidate[0] in {"【", "[", "(", "*"}
+
+        # 检查是否以情绪标记开头（优先检查）
+        emotion_patterns = [
+            r'^【[^】]*】',      # 【情绪=xxx】
+            r'^\[[^\]]*\]',    # [情绪=xxx]
+            r'^\([^)]*\)',     # (情绪=xxx)
+        ]
+
+        for pattern in emotion_patterns:
+            if re.match(pattern, candidate):
+                return True
+
+        # 检查是否是直接的说话内容（短句，没有复杂标点）
+        # 如果rest很短（小于60字符）且不包含句子结束符，可能是直接说话
+        if len(candidate) < 60 and not any(char in candidate[:40] for char in '。！？；'):
+            return True
+
+        # 检查是否是格式化的内容（如**xxx**）
+        # 如果开头是**但不是情绪标记，可能是Markdown格式
+        if candidate.startswith('**'):
+            # 检查后面是否紧跟中文或英文内容，而不是特殊符号
+            content_after_stars = candidate[2:].strip()
+            if content_after_stars and content_after_stars[0] in '。！？；：':
+                return False
+            # 如果是**xxx**格式且xxx很短，可能是合法的
+            if re.match(r'^\*\*[^*]{1,30}\*\*', candidate):
+                return True
+
+        return False
+
+    def is_valid_speaker_name(self, name: str) -> bool:
+        """验证speaker名称是否合理"""
+        # 长度检查：speaker名称通常很短（1-8个字符）
+        if len(name) > 8:
+            return False
+
+        # 模式检查：应该是人名，不是句子
+        if not re.match(r'^[\w\u4e00-\u9fff]{1,8}$', name):
+            return False
+
+        # 内容检查：不应该包含常见句子标志
+        sentence_indicators = ['问题', '这是', '我们', '你们', '他们', '如果', '但是', '所以', '因此', '回到', '根本']
+        if any(indicator in name for indicator in sentence_indicators):
+            return False
+
+        return True
 
 
 def _merge_emotions(parts: Iterable[Optional[str]]) -> Optional[str]:
