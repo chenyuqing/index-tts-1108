@@ -7,10 +7,6 @@ const languageSelect = document.getElementById("language");
 const loadChaptersBtn = document.getElementById("loadChaptersBtn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
 
-const chaptersPanel = document.getElementById("chaptersPanel");
-const chaptersContainer = document.getElementById("chaptersContainer");
-const chapterIndicator = document.getElementById("chapterIndicator");
-
 const emotionRecordingPanel = document.getElementById("emotionRecordingPanel");
 const prevChapterBtn = document.getElementById("prevChapterBtn");
 const prevSegmentBtn = document.getElementById("prevSegmentBtn");
@@ -21,6 +17,7 @@ const segmentPosition = document.getElementById("segmentPosition");
 const currentSegmentTitle = document.getElementById("currentSegmentTitle");
 const currentSegmentText = document.getElementById("currentSegmentText");
 const currentSegmentEmotion = document.getElementById("currentSegmentEmotion");
+const chapterInfo = document.getElementById("chapterInfo");
 
 const startRecordingBtn = document.getElementById("startRecordingBtn");
 const stopRecordingBtn = document.getElementById("stopRecordingBtn");
@@ -210,11 +207,11 @@ async function loadChapters() {
 
     renderActiveChapter();
 
-    chaptersPanel.style.display = "block";
     emotionRecordingPanel.style.display = "block";
 
   } catch (err) {
-    chaptersContainer.textContent = `加载失败: ${err.message}`;
+    console.error("加载失败:", err.message);
+    alert("加载失败: " + err.message);
   }
 }
 
@@ -229,38 +226,9 @@ function basePayload() {
 
 function renderActiveChapter() {
   if (!chaptersData.length) {
-    chaptersContainer.innerHTML = "";
-    chapterIndicator.textContent = "";
     return;
   }
 
-  const activeChapter = chaptersData[currentChapterIndex];
-  chapterIndicator.textContent = `${activeChapter.chapter_title} (${currentChapterIndex + 1}/${chaptersData.length}) - 总片段数: ${allSegments.length}`;
-  chaptersContainer.innerHTML = "";
-
-  // 创建当前章节的片段列表
-  const chapterSegmentsDiv = document.createElement("div");
-  chapterSegmentsDiv.className = "chapter-segments";
-
-  const currentChapterSegments = activeChapter.segments;
-  for (const segment of currentChapterSegments) {
-    const hasEmotionAudio = segment.emotion_reference_audio && segment.emotion_reference_audio.path;
-    const segmentDiv = document.createElement("div");
-    segmentDiv.className = `segment-item ${hasEmotionAudio ? "recorded" : "unrecorded"}`;
-    segmentDiv.innerHTML = `
-      <div class="segment-info">
-        <h4>${segment.segment_id} · ${segment.speaker}</h4>
-        <p class="segment-text">${segment.text}</p>
-        <p class="segment-emotion">${hasEmotionAudio ? "✅ 已录制" : "🎤 未录制"} · ${segment.emotion || "无"}</p>
-      </div>
-    `;
-    segmentDiv.onclick = () => selectSegment(segment);
-    chapterSegmentsDiv.appendChild(segmentDiv);
-  }
-
-  chaptersContainer.appendChild(chapterSegmentsDiv);
-
-  updateRecordingStats();
   // 导航到当前章节的第一个片段
   navigateToChapterSegment(0);
 }
@@ -282,14 +250,6 @@ function updateRecordingStats() {
   recordedCount.textContent = recorded;
 }
 
-function selectSegment(segment) {
-  const activeChapter = chaptersData[currentChapterIndex];
-  const index = activeChapter.segments.findIndex((s) => s.segment_id === segment.segment_id);
-  if (index !== -1) {
-    navigateToChapterSegment(index);
-  }
-}
-
 function navigateToChapterSegment(index) {
   const activeChapter = chaptersData[currentChapterIndex];
   if (index < 0 || index >= activeChapter.segments.length) return;
@@ -297,6 +257,8 @@ function navigateToChapterSegment(index) {
   currentSegmentIndex = index;
   const segment = activeChapter.segments[index];
 
+  // 显示章节信息
+  chapterInfo.textContent = `${activeChapter.chapter_title} (${currentChapterIndex + 1}/${chaptersData.length})`;
   currentSegmentTitle.textContent = `${segment.segment_id} · ${segment.speaker}`;
   currentSegmentText.textContent = segment.text;
   currentSegmentEmotion.textContent = segment.emotion || "无";

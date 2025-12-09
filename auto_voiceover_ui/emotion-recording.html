@@ -73,17 +73,6 @@
       </div>
     </section>
 
-    <section class="card panel" id="chaptersPanel">
-      <div class="panel-header spaced">
-        <div>
-          <h2>片段列表</h2>
-          <p class="muted">通过下方按钮导航各个片段进行情感录制。</p>
-        </div>
-        <div id="chapterIndicator" class="muted"></div>
-      </div>
-      <div id="chaptersContainer" class="chapters"></div>
-    </section>
-
     <!-- 情感录制控制区域 -->
     <section class="card panel" id="emotionRecordingPanel">
       <div class="panel-header spaced">
@@ -102,6 +91,7 @@
 
       <!-- 当前片段信息 -->
       <div class="current-segment-info" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+        <div id="chapterInfo" class="chapter-info" style="margin-bottom: 10px; color: #666; font-size: 14px;"></div>
         <h3 id="currentSegmentTitle">请选择片段</h3>
         <p id="currentSegmentText" class="segment-text-preview"></p>
         <p id="currentSegmentEmotion" class="segment-emotion-preview"></p>
