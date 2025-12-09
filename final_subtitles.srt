@@ -1,0 +1,384 @@
+1
+00:00:00,000 --> 00:00:09,323
+[larei] Welcome to the show
+Leo, we talk about AI all the time, and there's always something new
+But recently, one word keeps popping up: "Agent
+"
+
+2
+00:00:09,323 --> 00:00:16,452
+[leo] Agent
+I feel like
+isn't that just a "premium" name for a chatbot
+Just rebranding it to sound more impressive
+
+3
+00:00:16,452 --> 00:00:28,746
+[larei] That's actually the biggest misconception
+A Chatbot "waits" for your questions and "answers" them
+An Agent can "proactively" "do things" for you
+It's not just a "brain"; it has "hands and feet
+"
+
+4
+00:00:28,746 --> 00:00:31,579
+[leo] Oh? "Proactively do things"?
+
+5
+00:00:31,579 --> 00:00:47,753
+[larei] Exactly
+Today, we're going to dive deep into how AI evolved from "chatting" to "executing
+" Based on insights from Google, we'll explore the revolutionary changes Agents bring and a much grander future: an "Agentic Web" driven by the collaboration of countless agents
+
+6
+00:00:47,753 --> 00:00:55,658
+[larei] To understand Agents, we have to look at the evolutionary path of AI
+It's very clear, and it basically happened in four steps
+
+7
+00:00:55,658 --> 00:01:03,622
+[larei] Step one is the basic LLM ( Large Language Model ), like early Gemini
+You give it a Prompt, it gives you an answer
+That's "Q&A
+"
+
+8
+00:01:03,622 --> 00:01:05,620
+[leo] We're all familiar with that one.
+
+9
+00:01:05,620 --> 00:01:20,156
+[larei] Step two, we weren't satisfied with it only using its "known" knowledge, so RAG ( Retrieval-Augmented Generation ) emerged
+The model can "retrieve" external private data or knowledge bases before answering you
+Its knowledge expanded
+
+10
+00:01:20,156 --> 00:01:23,465
+[leo] Right, so it can "cite its sources," so to speak
+
+11
+00:01:23,465 --> 00:01:36,200
+[larei] Step three, we wanted it to not just "talk," but to "do
+" This led to "Tools" calling
+For example, you ask for the weather, it doesn't just guess; it actually calls a weather API, gets the data, and then tells you
+
+12
+00:01:36,200 --> 00:01:38,615
+[leo] So where does the Agent fit in?
+
+13
+00:01:38,615 --> 00:02:00,060
+[larei] The Agent is step four
+It's the fusion of all previous abilities, and it creates a fundamental change
+It's no longer just calling one tool; it possesses a "Reasoning Loop
+" It "thinks" for itself: "To complete this complex task, I should first call Tool A, get the result, analyze it, then call Tool B and Tool C
+"
+
+14
+00:02:00,060 --> 00:02:08,187
+[leo] I think I get it
+A Chatbot is "I'll do what you tell me to do
+" An Agent is "You tell me the goal, and I'll figure out how to get it done
+"
+
+15
+00:02:08,187 --> 00:02:32,813
+[larei] Exactly right
+This brings four revolutionary changes: First, Autonomous Action
+It doesn't wait for instructions; it can proactively execute complex processes
+Second, Reasoning and Planning
+It thinks for itself, and can even self-correct when it hits a problem
+Third, Continuous Learning
+It accumulates experience during execution, getting smarter and understanding you better over time
+
+16
+00:02:32,813 --> 00:02:34,764
+[leo] And the fourth one?
+
+17
+00:02:34,764 --> 00:02:38,758
+[larei] The fourth, and most powerful: Multi-Agent Collaboration
+
+18
+00:02:38,758 --> 00:02:50,193
+[larei] This "Multi-Agent Collaboration" is key to the future of Agents
+Just like in human society, solving complex problems relies on a team of specialists, not one "jack-of-all-trades
+"
+
+19
+00:02:50,193 --> 00:02:53,758
+[leo] AI needs to team up
+How do they even talk to each other
+
+20
+00:02:53,758 --> 00:03:03,592
+[larei] This is the core problem Google is trying to solve
+In a company, you might have an "Expedia Agent" for booking tickets, an "SAP Agent" for expenses, and a "Slack Agent" for approvals
+
+21
+00:03:03,592 --> 00:03:16,687
+[leo] Hold on
+I think I see where you're going
+If I need to go on a business trip, right now I have to go to Expedia, book the flight, screenshot it, then go to SAP to fill out the expense form, and finally paste a link to my boss for approval
+Right
+
+22
+00:03:16,687 --> 00:03:27,125
+[larei] Exactly
+The process is fragmented
+But in the world of Agents, you just tell your "Root Agent": "Handle my business trip to Hangzhou next week, budget is $500
+"
+
+23
+00:03:27,125 --> 00:03:28,274
+[leo] And then?
+
+24
+00:03:28,274 --> 00:03:47,793
+[larei] Then your "Root Agent" activates
+It automatically "discovers" and "delegates" tasks: it first contacts the "Booking Agent" to secure the flight and hotel
+Then, it sends the order info to the "Expense Agent" to automatically generate the expense report
+Finally, it pushes the request to the "Approval Agent" to wait for your boss's click
+
+25
+00:03:47,793 --> 00:03:53,342
+[leo] And I don't have to do anything
+How is that possible
+Are all their backends connected
+
+26
+00:03:53,342 --> 00:03:59,368
+[larei] This is precisely the value of the A2A Protocol the Agent-to-Agent Protocol that Google has proposed
+
+27
+00:03:59,368 --> 00:04:15,298
+[larei] The A2A Protocol is what you can think of as the "diplomatic language" or "common standard" for Agents
+The Expedia Agent and the SAP Agent have completely different internal systems; they are "black boxes" to each other
+But they both agree to use the A2A language for external communication
+
+28
+00:04:15,298 --> 00:04:19,141
+[leo] So, A2A is like the "lingua franca" of the Agent world
+
+29
+00:04:19,141 --> 00:04:27,129
+[larei] A good analogy
+When Agent A wants to ask Agent B for help, it first needs to "discover" B
+Agent B provides an "Agent Card
+"
+
+30
+00:04:27,129 --> 00:04:31,297
+[leo] A business card
+What's on it
+"AI Elite, Agent B"
+
+31
+00:04:31,297 --> 00:04:40,295
+[larei] ( Chuckles ) Close
+It's a JSON file that standardly lists: "Who I am," "What skills I have," "What input format I accept," and "What my contact address is
+"
+
+32
+00:04:40,295 --> 00:04:50,151
+[larei] Once A gets the card, it knows how to talk to B
+It sends a standardized Message via RPC ( Remote Procedure Call )
+If the task is simple, B returns the result immediately
+
+33
+00:04:50,151 --> 00:04:56,375
+[leo] But "expense approval" isn't simple
+The boss might not see it for hours
+Does A have to just "wait online"
+
+34
+00:04:56,375 --> 00:05:11,062
+[larei] Great question
+This is where the "Asynchronous Priority" design of the A2A protocol comes in
+For complex tasks, when B receives the request, it immediately replies to A: "Task created, ID is 123, I'm processing it
+"
+
+35
+00:05:11,062 --> 00:05:13,975
+[leo] So how does A know when B is finished?
+
+36
+00:05:13,975 --> 00:05:22,173
+[larei] A *could* use "Polling" asking B every few minutes, "How's task 123 doing
+" But that's very inefficient
+
+37
+00:05:22,173 --> 00:05:43,422
+[larei] That's why A2A recommends using SSE ( Server-Side Events )
+Agent A just keeps a connection open, and Agent B will "proactively" push status updates through this stream: "Task 123 submitted for approval," "Task 123 approved by boss," "Task 123 complete
+" It's much more efficient
+
+38
+00:05:43,422 --> 00:05:49,029
+[leo] This all sounds great, but are these Agents far-off, or does Google have any practical examples
+
+39
+00:05:49,029 --> 00:05:58,353
+[leo] Ah, that one
+The one where you can be interrupted mid-conversation, and it still remembers what you were talking about it maintains "In-Session Memory"
+
+40
+00:05:58,353 --> 00:06:09,509
+[larei] That's the one
+It can also understand the parts on your desk, help you find a tutorial on YouTube, or even find the dimensions in your email
+That's a classic multi-modal, cross-application Agent
+
+41
+00:06:09,509 --> 00:06:20,307
+[larei] There's another, more grounded prototype called Mariner
+It's a Chrome browser plugin
+Through it, the large model can "understand" the pixels, text, and forms on your screen
+
+42
+00:06:20,307 --> 00:06:22,675
+[leo] Isn't that just "browser automation"?
+
+43
+00:06:22,675 --> 00:06:37,024
+[larei] Yes
+For example, you can give it a Google Sheet with 100 companies
+Mariner will automatically open new tabs, search for each company's website, find the "Contact Us" page, and copy the email address back into the sheet
+
+44
+00:06:37,024 --> 00:06:43,944
+[leo] That's a huge time-saver
+And I heard that while it's working, you can pause it and actually see what it's "thinking" ( its Reasoning )
+
+45
+00:06:43,944 --> 00:06:52,211
+[larei] Exactly
+That kind of transparency is important
+It proves Agents aren't science fiction; they are entering our workflows right now
+
+46
+00:06:52,211 --> 00:07:02,694
+[larei] So we've talked about what Agents can do ( A2A collaboration ) and seen examples ( Mariner )
+How do developers actually build their own
+For this, Google provides a complete "Agent Stack
+"
+
+47
+00:07:02,694 --> 00:07:06,038
+[leo] The "full stack" again ( laughs )
+What's included
+
+48
+00:07:06,038 --> 00:07:17,497
+[larei] ( Laughs ) Pretty much
+First, at the bottom, is the "brain": the Gemini family of models, providing reasoning
+Second, is the "body" and "skeleton": the ADK ( Agent Development Kit )
+
+49
+00:07:17,497 --> 00:07:20,470
+[leo] ADK? Another SDK?
+
+50
+00:07:20,470 --> 00:07:32,045
+[larei] It's an open-source client SDK, and it's critical
+It saves developers from worrying about the low-level details of tool calling, workflow orchestration, and session management
+ADK packages all that "grunt work
+"
+
+51
+00:07:32,045 --> 00:07:44,038
+[larei] For instance, in ADK, you can define an Agent's persona ( Instruction ) and its Tools in just a few lines of code
+You can even nest Agents, having a "Root Agent" call a "Research Agent" as a sub-task
+
+52
+00:07:44,038 --> 00:07:52,315
+[leo] I get it
+ADK is the "Agent construction kit," and A2A is the "communication protocol" they use *after* they're built
+
+53
+00:07:52,315 --> 00:08:05,470
+[larei] Precisely
+Finally, the Agent you build needs a place to "live" ( Host )
+That's the Vertex AI Agent Engine
+It's a fully managed cloud platform that handles scaling, security, and monitoring for you
+
+54
+00:08:05,470 --> 00:08:17,788
+[leo] Larei, I have a question
+Google provides the Gemini ( brain ), the ADK ( body ), and the Agent Engine ( habitat )
+Are they trying to create a "monopoly"
+If I use ADK, am I forced to use Gemini
+
+55
+00:08:17,788 --> 00:08:26,274
+[larei] This is actually the most interesting part of Google's Agent strategy
+The answer is: no
+The design philosophy of ADK is "Model Agnostic
+"
+
+56
+00:08:26,274 --> 00:08:28,550
+[leo] Model Agnostic?
+
+57
+00:08:28,550 --> 00:08:37,884
+[larei] Yes
+ADK has an "LLM Core" inside
+It defaults to Gemini, but it allows you to plug in any other model, whether it's closed-source or open-source
+
+58
+00:08:37,884 --> 00:08:46,767
+[leo] Wow, that's a very open approach
+It's like Google is providing the "car blueprints" ( ADK ), but letting you choose your own "engine" ( LLM )
+
+59
+00:08:46,767 --> 00:08:59,027
+[larei] And not just that, it's also "Deployment Agnostic
+" The Agent you build with ADK, once packaged as a container image, can be deployed on Google Cloud, on-premises ( Local ), or on any other cloud platform
+
+60
+00:08:59,027 --> 00:09:13,155
+[leo] So Google's strategy isn't to "lock in" developers
+It's to attract everyone to co-build this "Agentic Web" ecosystem by providing the best tools ( ADK ) and the most open protocol ( A2A )
+
+61
+00:09:13,155 --> 00:09:18,879
+[larei] Exactly
+It's betting on the openness of the ecosystem, not the exclusiveness of its platform
+
+62
+00:09:18,879 --> 00:09:32,451
+[larei] So, looking back, the Agent is no longer a distant concept
+It evolved from Q&A ( LLM ), to retrieval ( RAG ), to execution ( Tools ), and finally into a new species that can act, plan, and collaborate autonomously
+
+63
+00:09:32,451 --> 00:09:38,895
+[leo] And the ADK and A2A protocols from Google are designed to lower the barrier to building them and allow them to "team up
+"
+
+64
+00:09:38,895 --> 00:09:48,811
+[larei] Finally, for all of this to happen at scale, the "brain" ( the LLM ) must be both powerful and cheap
+This is why Google emphasizes the "Pareto Frontier" for its Gemini family
+
+65
+00:09:48,811 --> 00:09:50,958
+[leo] "Pareto Frontier"?
+
+66
+00:09:50,958 --> 00:09:57,727
+[larei] To quote Jennie Shi, it's summarized as: "The strongest is the cheapest, and the cheapest is the strongest
+"
+
+67
+00:09:57,727 --> 00:10:10,139
+[larei] Only when the operating cost of the Agent's "brain" is low enough, and its performance high enough, can an "Agentic Web" an internet of billions of agents collaborating to complete complex tasks for us truly be realized
+
+68
+00:10:10,139 --> 00:10:20,437
+[leo] An internet where we no longer have to operate things manually, but one that understands our intent and collaborates proactively
+That certainly sounds like a future worth looking forward to
+Thanks for the insights today, Larei
+
+69
+00:10:20,437 --> 00:10:21,934
+[larei] Thanks for listening.
