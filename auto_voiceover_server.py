@@ -853,12 +853,26 @@ def upload_emotion_audio() -> Any:
     try:
         # 获取表单数据
         segment_id = request.form.get("segment_id")
-        project_name = request.form.get("project_name")
-        chapter = request.form.get("chapter")
-        speaker = request.form.get("speaker")
+        chapter_id = request.form.get("chapter_id")
+        script_path = request.form.get("script_path")
 
-        if not all([segment_id, project_name, chapter, speaker]):
+        if not all([segment_id, chapter_id, script_path]):
             return jsonify({"error": "missing_required_fields"}), 400
+
+        # 从script_path提取项目名称
+        script_path_obj = Path(script_path)
+        if not script_path_obj.exists():
+            return jsonify({"error": "script_not_found"}), 400
+
+        # 从script路径推断项目名称
+        # 例如: /path/to/test_input/scripts/agentic-ai-mooc-06-EN.md -> agentic-ai-mooc-06-EN
+        script_name = script_path_obj.stem
+        project_name = script_name
+
+        # 从segment_id中提取speaker信息，例如: ch00-01-larei -> leo
+        # segment_id格式: ch00-01-larei
+        parts = segment_id.split("-")
+        speaker = parts[-1] if len(parts) > 2 else "unknown"
 
         # 检查是否有文件上传
         if "audio" not in request.files:
@@ -875,7 +889,7 @@ def upload_emotion_audio() -> Any:
             return jsonify({"error": f"invalid_format: {file_ext}"}), 400
 
         # 创建保存目录
-        base_dir = Path("test_input/DUB") / project_name / "emotion_reference_audios" / chapter
+        base_dir = Path("test_input/DUB") / project_name / "emotion_reference_audios" / chapter_id
         base_dir.mkdir(parents=True, exist_ok=True)
 
         # 生成文件名
