@@ -22,7 +22,6 @@ const currentSegmentTitle = document.getElementById("currentSegmentTitle");
 const currentSegmentText = document.getElementById("currentSegmentText");
 const currentSegmentEmotion = document.getElementById("currentSegmentEmotion");
 
-const recordingMode = document.getElementById("recordingMode");
 const startRecordingBtn = document.getElementById("startRecordingBtn");
 const stopRecordingBtn = document.getElementById("stopRecordingBtn");
 const recordingIndicator = document.getElementById("recordingIndicator");
