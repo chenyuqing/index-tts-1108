@@ -367,8 +367,8 @@ function renderActiveChapter() {
             recordingIndicator.querySelector(".timer").textContent =
               `${displayMinutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`;
 
-            // 15秒自动停止
-            if (seconds >= 15) {
+            // 90秒自动停止
+            if (seconds >= 90) {
               stopRecording();
             }
           }, 100);

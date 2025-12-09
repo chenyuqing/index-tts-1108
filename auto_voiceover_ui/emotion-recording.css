@@ -1,0 +1,453 @@
+/* 情感录制页面样式 */
+
+.emotion-recording-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* 录制面板 */
+.recording-panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.recording-status-overview {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.status-item span:last-child {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 当前录制区域 */
+.current-recording-section {
+  margin-top: 24px;
+  padding: 24px;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+}
+
+.segment-info {
+  margin-bottom: 24px;
+}
+
+.segment-info h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  color: var(--fg);
+}
+
+.segment-text-preview {
+  margin: 12px 0;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.segment-emotion-preview {
+  margin: 0;
+  padding: 8px 16px;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 999px;
+  font-size: 14px;
+  color: #007bff;
+  display: inline-block;
+}
+
+/* 录制控制 */
+.recording-controls-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.recording-mode-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-mode-selector label {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.recording-mode-selector select {
+  padding: 8px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  font-size: 14px;
+}
+
+/* 录制界面 */
+.recording-interface {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 16px;
+  border: 2px dashed var(--card-border);
+}
+
+.record-btn-main {
+  padding: 20px 40px;
+  border: none;
+  border-radius: 50px;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(0, 123, 255, 0.3);
+}
+
+.record-btn-main:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 123, 255, 0.4);
+}
+
+.record-btn-main:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.record-btn-main:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.record-btn-main.stop-btn {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  box-shadow: 0 8px 24px rgba(220, 53, 69, 0.3);
+}
+
+.record-btn-main.stop-btn:hover {
+  box-shadow: 0 12px 32px rgba(220, 53, 69, 0.4);
+}
+
+/* 录制指示器 */
+.recording-indicator-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: rgba(220, 53, 69, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.recording-indicator-main.hidden {
+  display: none;
+}
+
+.recording-dot {
+  width: 12px;
+  height: 12px;
+  background: #dc3545;
+  border-radius: 50%;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+.recording-time {
+  font-family: 'Courier New', monospace;
+  font-size: 24px;
+  font-weight: 600;
+  color: #dc3545;
+}
+
+.recording-max {
+  font-size: 16px;
+  color: #6c757d;
+}
+
+/* 音频播放区域 */
+.audio-playback-section {
+  width: 100%;
+  max-width: 600px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+}
+
+.recordedAudio {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.playback-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* 录制提示 */
+.recording-tips {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(255, 193, 7, 0.1);
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+}
+
+.recording-tips p {
+  margin: 0;
+  font-size: 14px;
+  color: #ffc107;
+}
+
+/* 片段列表 */
+.segments-panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.segments-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.segments-list-container {
+  margin-top: 20px;
+}
+
+.segments-list {
+  display: grid;
+  gap: 12px;
+}
+
+.segment-item {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.segment-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--accent);
+}
+
+.segment-item.selected {
+  background: rgba(0, 123, 255, 0.1);
+  border-color: #007bff;
+}
+
+.segment-item.recorded {
+  background: rgba(40, 167, 69, 0.1);
+  border-color: #28a745;
+}
+
+.segment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.segment-id {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.segment-speaker {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.segment-text {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+
+.segment-emotion {
+  display: inline-block;
+  padding: 4px 8px;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 4px;
+  font-size: 12px;
+  color: #007bff;
+}
+
+.segment-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.status-icon {
+  font-size: 14px;
+}
+
+.status-icon.recorded {
+  color: #28a745;
+}
+
+.status-icon.unrecorded {
+  color: #6c757d;
+}
+
+/* 批量录制模式 */
+.batch-recording-panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.batch-recording-content {
+  margin-top: 24px;
+}
+
+.batch-progress {
+  margin-bottom: 32px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.current-batch-segment {
+  padding: 24px;
+  background: var(--surface);
+  border-radius: 12px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.current-batch-segment h3 {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+}
+
+.batch-segment-text {
+  font-size: 18px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.batch-segment-emotion {
+  display: inline-block;
+  padding: 8px 16px;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 999px;
+  font-size: 14px;
+  color: #007bff;
+}
+
+.batch-recording-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .emotion-recording-layout {
+    padding: 16px;
+  }
+
+  .recording-status-overview {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .recording-interface {
+    padding: 20px;
+  }
+
+  .record-btn-main {
+    padding: 16px 32px;
+    font-size: 16px;
+  }
+
+  .segments-actions {
+    flex-direction: column;
+  }
+
+  .batch-recording-controls {
+    flex-direction: column;
+  }
+
+  .segment-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}

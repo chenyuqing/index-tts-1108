@@ -261,6 +261,11 @@ def review() -> Any:
     return send_from_directory(app.static_folder, "review.html")
 
 
+@app.route("/emotion-recording")
+def emotion_recording() -> Any:
+    return send_from_directory(app.static_folder, "emotion-recording.html")
+
+
 @app.route("/audiobook")
 def audiobook() -> Any:
     return send_from_directory(app.static_folder, "audiobook.html")

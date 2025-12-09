@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <title>情感参考音频录制 - Auto Voiceover</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+  <link rel="stylesheet" href="/ui/review.css" />
+  <link rel="stylesheet" href="/ui/emotion-recording.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Auto Voiceover</p>
+      <h1>情感参考音频录制</h1>
+      <p class="subtitle">为每个片段录制情感参考音频，让配音更生动自然。</p>
+    </div>
+    <div class="header-actions">
+      <a class="ghost" href="/">返回主页</a>
+      <a class="ghost" href="/review">逐句微调</a>
+    </div>
+  </header>
+
+  <main class="emotion-recording-layout">
+    <!-- 基础信息配置区域 -->
+    <section class="card panel">
+      <div class="panel-header">
+        <div>
+          <h2>项目配置</h2>
+          <p class="muted">选择脚本、配置和输出目录后加载片段列表。</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>脚本 (.md)</label>
+          <div class="field-input">
+            <input id="scriptPath" type="text" />
+            <button class="ghost" data-browse="script">浏览</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>配置 (.yaml)</label>
+          <div class="field-input">
+            <input id="configPath" type="text" />
+            <button class="ghost" data-browse="config">浏览</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>输出根目录</label>
+          <div class="field-input">
+            <input id="outRoot" type="text" />
+            <button class="ghost" data-browse="outroot">浏览</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>模型目录</label>
+          <div class="field-input">
+            <input id="modelDir" type="text" />
+            <button class="ghost" data-browse="model">浏览</button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="loadSegmentsBtn" class="primary">加载片段列表</button>
+        <button id="clearCacheBtn" class="secondary">清理模型缓存</button>
+      </div>
+    </section>
+
+    <!-- 录制控制面板 -->
+    <section class="card panel recording-panel" id="recordingPanel" style="display: none;">
+      <div class="panel-header">
+        <div>
+          <h2>录制控制</h2>
+          <p class="muted">选择一个片段，录制90秒以内的情感参考音频。</p>
+        </div>
+        <div class="recording-status-overview">
+          <span class="status-item">🎤 未录制: <span id="unrecordedCount">0</span></span>
+          <span class="status-item">✅ 已录制: <span id="recordedCount">0</span></span>
+        </div>
+      </div>
+
+      <div class="current-recording-section">
+        <div class="segment-info">
+          <h3 id="currentSegmentTitle">请选择一个片段</h3>
+          <p id="currentSegmentText" class="segment-text-preview"></p>
+          <p id="currentSegmentEmotion" class="segment-emotion-preview"></p>
+        </div>
+
+        <div class="recording-controls-main">
+          <div class="recording-mode-selector">
+            <label>录制模式：</label>
+            <select id="recordingMode">
+              <option value="replace">替换原有情感</option>
+              <option value="enhance">增强原有情感</option>
+            </select>
+          </div>
+
+          <div class="recording-interface">
+            <button id="startRecordingBtn" class="record-btn-main" disabled>
+              🎤 开始录制
+            </button>
+            <button id="stopRecordingBtn" class="record-btn-main stop-btn" style="display: none;">
+              ⏹ 停止录制
+            </button>
+
+            <div id="recordingIndicator" class="recording-indicator-main hidden">
+              <span class="recording-dot"></span>
+              <span class="recording-time">00:00</span>
+              <span class="recording-max">/ 01:30</span>
+            </div>
+
+            <div id="audioPlayback" class="audio-playback-section" style="display: none;">
+              <audio id="recordedAudio" controls></audio>
+              <div class="playback-actions">
+                <button id="uploadAudioBtn" class="btn btn-primary">上传并保存</button>
+                <button id="reRecordBtn" class="btn btn-secondary">重新录制</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="recording-tips">
+            <p>💡 提示：录制时请保持环境安静，尽量用自然的语调表达情感。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 片段列表 -->
+    <section class="card panel segments-panel" id="segmentsPanel" style="display: none;">
+      <div class="panel-header">
+        <div>
+          <h2>片段列表</h2>
+          <p class="muted">点击选择一个片段进行情感录制。</p>
+        </div>
+        <div class="segments-actions">
+          <button id="batchRecordBtn" class="btn btn-info">批量录制模式</button>
+          <button id="exportProgressBtn" class="btn btn-success">导出录制报告</button>
+        </div>
+      </div>
+
+      <div class="segments-list-container">
+        <div id="segmentsList" class="segments-list">
+          <!-- 动态生成的片段列表 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 批量录制模式面板 -->
+    <section class="card panel batch-recording-panel" id="batchRecordingPanel" style="display: none;">
+      <div class="panel-header">
+        <div>
+          <h2>批量录制模式</h2>
+          <p class="muted">系统将自动播放每个片段的文本，您只需录制情感参考音频。</p>
+        </div>
+        <button id="exitBatchModeBtn" class="btn btn-secondary">退出批量模式</button>
+      </div>
+
+      <div class="batch-recording-content">
+        <div class="batch-progress">
+          <div class="progress-bar">
+            <div id="batchProgressBar" class="progress-bar-fill"></div>
+          </div>
+          <p class="progress-text">
+            进度：<span id="batchCurrent">0</span> / <span id="batchTotal">0</span>
+          </p>
+        </div>
+
+        <div class="current-batch-segment">
+          <h3 id="batchSegmentTitle">片段标题</h3>
+          <p id="batchSegmentText" class="batch-segment-text"></p>
+          <p id="batchSegmentEmotion" class="batch-segment-emotion"></p>
+        </div>
+
+        <div class="batch-recording-controls">
+          <button id="batchStartBtn" class="btn btn-primary">开始批量录制</button>
+          <button id="batchNextBtn" class="btn btn-primary" style="display: none;">下一个</button>
+          <button id="batchSkipBtn" class="btn btn-secondary" style="display: none;">跳过</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 文件浏览器模态框 -->
+  <div id="browserModal" class="modal hidden">
+    <div class="modal-content">
+      <header>
+        <h3 id="browserTitle">浏览</h3>
+        <button id="browserClose">×</button>
+      </header>
+      <div class="browser-toolbar">
+        <span id="browserPath"></span>
+        <button id="browserUp" class="secondary">上一级</button>
+      </div>
+      <ul id="browserList"></ul>
+      <footer>
+        <button id="browserSelect" class="primary">选择</button>
+        <button id="browserCancel" class="secondary">取消</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 脚本引用 -->
+  <script src="/ui/emotion-recording.js"></script>
+</body>
+</html>
