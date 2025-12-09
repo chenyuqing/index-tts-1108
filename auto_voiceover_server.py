@@ -8,6 +8,8 @@ import json
 import logging
 import signal
 import threading
+import wave
+import io
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
@@ -833,6 +835,78 @@ def api_subtitles_download() -> Any:
         )
     except Exception as e:
         return jsonify({"error": f"download_failed: {str(e)}"}), 500
+
+
+@app.post("/api/audio/upload")
+def upload_emotion_audio() -> Any:
+    """上传情感参考音频文件"""
+    try:
+        # 获取表单数据
+        segment_id = request.form.get("segment_id")
+        project_name = request.form.get("project_name")
+        chapter = request.form.get("chapter")
+        speaker = request.form.get("speaker")
+
+        if not all([segment_id, project_name, chapter, speaker]):
+            return jsonify({"error": "missing_required_fields"}), 400
+
+        # 检查是否有文件上传
+        if "audio" not in request.files:
+            return jsonify({"error": "no_audio_file"}), 400
+
+        audio_file = request.files["audio"]
+        if audio_file.filename == "":
+            return jsonify({"error": "empty_filename"}), 400
+
+        # 验证文件类型
+        allowed_extensions = {".wav", ".mp3", ".m4a", ".webm", ".ogg"}
+        file_ext = Path(audio_file.filename).suffix.lower()
+        if file_ext not in allowed_extensions:
+            return jsonify({"error": f"invalid_format: {file_ext}"}), 400
+
+        # 创建保存目录
+        base_dir = Path("test_input/DUB") / project_name / "emotion_reference_audios" / chapter
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成文件名
+        filename = f"{segment_id}-{speaker}.wav"
+        file_path = base_dir / filename
+
+        # 保存音频文件
+        audio_data = audio_file.read()
+
+        # 如果是WebM格式，需要特殊处理
+        if file_ext == ".webm":
+            # 直接保存WebM文件，后续处理
+            webm_path = file_path.with_suffix(".webm")
+            webm_path.write_bytes(audio_data)
+            # TODO: 这里可以添加WebM到WAV的转换
+            # 暂时直接返回成功
+            return jsonify({
+                "success": True,
+                "path": str(webm_path),
+                "duration": 0.0  # 暂时无法获取时长
+            })
+        else:
+            # 保存WAV文件
+            file_path.write_bytes(audio_data)
+
+            # 尝试获取音频时长
+            try:
+                import librosa
+                duration = librosa.get_duration(path=str(file_path))
+            except:
+                duration = 0.0
+
+            return jsonify({
+                "success": True,
+                "path": str(file_path),
+                "duration": round(duration, 3)
+            })
+
+    except Exception as e:
+        logging.error(f"Audio upload error: {str(e)}")
+        return jsonify({"error": f"upload_failed: {str(e)}"}), 500
 
 
 def create_app() -> Flask:

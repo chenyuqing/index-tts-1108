@@ -259,11 +259,208 @@ function renderActiveChapter() {
 
       const controls = document.createElement("div");
       controls.className = "segment-controls";
+
+      // 情感控制区域
+      const emotionControls = document.createElement("div");
+      emotionControls.className = "emotion-controls";
+
       const emotionInput = document.createElement("textarea");
       emotionInput.className = "segment-emotion";
       emotionInput.placeholder = "自定义情绪，比如：温暖、激情";
       emotionInput.value = segment.emotion || "";
       emotionInput.rows = 2;
+
+      // 情感模式选择
+      const modeSelect = document.createElement("select");
+      modeSelect.className = "emotion-mode";
+      modeSelect.innerHTML = `
+        <option value="text" ${segment.emotion_mode !== "audio" ? "selected" : ""}>使用文本情绪</option>
+        <option value="audio" ${segment.emotion_mode === "audio" ? "selected" : ""}>使用录音情绪</option>
+      `;
+
+      // 录制控制区域
+      const recordingControls = document.createElement("div");
+      recordingControls.className = "recording-controls";
+
+      // 录制状态图标
+      const recordingStatus = document.createElement("span");
+      recordingStatus.className = "recording-status";
+      recordingStatus.title = segment.emotion_reference_audio ? "已录制" : "未录音";
+      recordingStatus.textContent = segment.emotion_reference_audio ? "✅" : "🎤";
+      if (segment.emotion_reference_audio) {
+        recordingStatus.classList.add("recorded");
+      }
+
+      // 录制按钮
+      const recordBtn = document.createElement("button");
+      recordBtn.className = "record-btn";
+      recordBtn.textContent = "🎤";
+      recordBtn.title = "录制情感参考音频";
+
+      // 录制指示器
+      const recordingIndicator = document.createElement("div");
+      recordingIndicator.className = "recording-indicator hidden";
+      recordingIndicator.innerHTML = `● <span class="timer">00:00</span>`;
+
+      // 音频预览
+      const audioPreview = document.createElement("audio");
+      audioPreview.className = "emotion-audio-preview";
+      audioPreview.controls = true;
+      if (segment.emotion_reference_audio) {
+        audioPreview.src = segment.emotion_reference_audio;
+      }
+
+      // 录制状态管理
+      let isRecording = false;
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let recordingTimer = null;
+      let recordingStartTime = 0;
+
+      // 录制按钮事件
+      recordBtn.addEventListener("click", async () => {
+        if (isRecording) {
+          // 停止录制
+          stopRecording();
+        } else {
+          // 开始录制
+          startRecording();
+        }
+      });
+
+      // 开始录制函数
+      async function startRecording() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            audioPreview.src = audioUrl;
+
+            // 上传音频
+            uploadEmotionAudio(segment.segment_id, audioBlob);
+
+            // 清理流
+            stream.getTracks().forEach(track => track.stop());
+          };
+
+          mediaRecorder.start();
+          isRecording = true;
+          recordBtn.textContent = "⏹";
+          recordBtn.style.background = "red";
+          recordingIndicator.classList.remove("hidden");
+          recordingStartTime = Date.now();
+
+          // 开始计时器
+          recordingTimer = setInterval(() => {
+            const elapsed = Date.now() - recordingStartTime;
+            const seconds = Math.floor(elapsed / 1000);
+            const displaySeconds = seconds % 60;
+            const displayMinutes = Math.floor(seconds / 60);
+            recordingIndicator.querySelector(".timer").textContent =
+              `${displayMinutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`;
+
+            // 15秒自动停止
+            if (seconds >= 15) {
+              stopRecording();
+            }
+          }, 100);
+
+        } catch (error) {
+          console.error("录制失败:", error);
+          alert("无法访问麦克风，请检查权限设置");
+        }
+      }
+
+      // 停止录制函数
+      function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+        isRecording = false;
+        recordBtn.textContent = "🎤";
+        recordBtn.style.background = "";
+        recordingIndicator.classList.add("hidden");
+
+        if (recordingTimer) {
+          clearInterval(recordingTimer);
+          recordingTimer = null;
+        }
+      }
+
+      // 上传情感音频函数
+      async function uploadEmotionAudio(segmentId, audioBlob) {
+        const formData = new FormData();
+        formData.append("audio", audioBlob, `${segmentId}.wav`);
+        formData.append("segment_id", segmentId);
+        formData.append("project_name", manifest.episode || "unknown");
+        formData.append("chapter", segment.chapter || "ch00");
+        formData.append("speaker", segment.speaker || "unknown");
+
+        try {
+          const response = await fetch("/api/audio/upload", {
+            method: "POST",
+            body: formData
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            // 更新片段数据
+            segment.emotion_reference_audio = result.path;
+            segment.emotion_reference_status = "recorded";
+            recordingStatus.textContent = "✅";
+            recordingStatus.classList.add("recorded");
+            recordingStatus.title = "已录制";
+
+            alert("情感音频上传成功！");
+          } else {
+            alert(`上传失败: ${result.error}`);
+          }
+        } catch (error) {
+          console.error("上传错误:", error);
+          alert("上传失败，请重试");
+        }
+      }
+
+      // 模式切换事件
+      modeSelect.addEventListener("change", (e) => {
+        const newMode = e.target.value;
+        segment.emotion_mode = newMode;
+
+        // 根据模式显示/隐藏相关控件
+        if (newMode === "audio") {
+          emotionInput.disabled = true;
+          emotionInput.placeholder = "使用录制的情感音频";
+        } else {
+          emotionInput.disabled = false;
+          emotionInput.placeholder = "自定义情绪，比如：温暖、激情";
+        }
+      });
+
+      // 初始化模式
+      if (segment.emotion_mode === "audio") {
+        emotionInput.disabled = true;
+        emotionInput.placeholder = "使用录制的情感音频";
+      }
+
+      // 组装控件
+      recordingControls.appendChild(recordingStatus);
+      recordingControls.appendChild(recordBtn);
+      recordingControls.appendChild(recordingIndicator);
+      recordingControls.appendChild(audioPreview);
+
+      emotionControls.appendChild(modeSelect);
+      emotionControls.appendChild(emotionInput);
+      emotionControls.appendChild(recordingControls);
+
       const regenBtn = document.createElement("button");
       regenBtn.textContent = segment.audio_url ? "重新生成" : "生成";
       regenBtn.className = "primary";
@@ -271,7 +468,8 @@ function renderActiveChapter() {
       regenBtn.addEventListener("click", () =>
         handleRegenerate(segment.segment_id, emotionInput.value, textArea.value, row, regenBtn)
       );
-      controls.appendChild(emotionInput);
+
+      controls.appendChild(emotionControls);
       controls.appendChild(regenBtn);
       row.appendChild(controls);
 
@@ -302,12 +500,19 @@ async function handleRegenerate(segmentId, emotionText, textValue, rowEl, button
     buttonEl.textContent = "合成中…";
   }
   try {
+    // 获取当前片段的数据
+    const currentChapter = chaptersData.find(c => c.chapter_id === activeChapterId);
+    const currentSegment = currentChapter?.segments?.find(s => s.segment_id === segmentId);
+
+    // 构建覆盖配置
+    const overrides = buildOverrides(emotionText, textValue, currentSegment);
+
     const payload = {
       ...basePayload(),
       model_dir: modelDirInput.value,
       segment_id: segmentId,
       manifest_path: manifestPath,
-      overrides: buildOverrides(emotionText, textValue),
+      overrides: overrides,
     };
     const res = await fetchJSON("/api/segment/regenerate", {
       method: "POST",
@@ -334,14 +539,30 @@ async function handleRegenerate(segmentId, emotionText, textValue, rowEl, button
   }
 }
 
-function buildOverrides(emotionText, textValue) {
+function buildOverrides(emotionText, textValue, segment) {
   const overrides = {};
   if (textValue && textValue.trim()) {
     overrides.text = textValue.trim();
   }
-  if (emotionText && emotionText.trim()) {
+
+  // 如果提供了片段数据，包含情感模式和参考音频信息
+  if (segment) {
+    // 情感模式
+    if (segment.emotion_mode) {
+      overrides.emotion_mode = segment.emotion_mode;
+    }
+
+    // 情感参考音频路径
+    if (segment.emotion_reference_audio) {
+      overrides.emotion_reference_audio = segment.emotion_reference_audio;
+    }
+  }
+
+  // 只有在文本模式下才使用情感文本
+  if (segment?.emotion_mode !== "audio" && emotionText && emotionText.trim()) {
     overrides.emotion = emotionText.trim();
   }
+
   return overrides;
 }
 

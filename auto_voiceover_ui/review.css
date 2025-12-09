@@ -129,6 +129,135 @@
   margin-top: 8px;
 }
 
+/* 情感控制区域 */
+.emotion-controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 情感模式选择器 */
+.emotion-mode {
+  padding: 6px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.emotion-mode:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 录制控制区域 */
+.recording-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+}
+
+/* 录制状态图标 */
+.recording-status {
+  font-size: 20px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.recording-status:hover {
+  transform: scale(1.1);
+}
+
+.recording-status.recorded {
+  color: #28a745;
+}
+
+/* 录制按钮 */
+.record-btn {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.record-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.record-btn:active {
+  transform: scale(0.95);
+}
+
+.record-btn.recording {
+  background: #dc3545;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* 录制指示器 */
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #dc3545;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.recording-indicator.hidden {
+  display: none;
+}
+
+.recording-indicator .timer {
+  font-family: monospace;
+  font-size: 14px;
+}
+
+/* 音频预览 */
+.emotion-audio-preview {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.emotion-audio-preview::-webkit-media-controls-panel {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .recording-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .record-btn {
+    align-self: center;
+  }
+}
+
 .segment-controls .segment-emotion {
   flex: 1;
   margin-top: 0;

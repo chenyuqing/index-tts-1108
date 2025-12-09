@@ -638,6 +638,12 @@ def build_manifest(
                 "error": None,
                 "started_at": None,
                 "completed_at": None,
+                # 情感参考音频相关字段
+                "emotion_reference_audio": None,
+                "emotion_reference_status": "missing",
+                "emotion_mode": "text",  # "text" 或 "audio"
+                "actual_duration_sec": None,
+                "timing_accuracy": None,
             }
         )
 
@@ -686,6 +692,12 @@ def merge_manifests(old: Dict[str, object], new: Dict[str, object]) -> Dict[str,
             "error",
             "started_at",
             "completed_at",
+            "actual_duration_sec",
+            "timing_accuracy",
+            # 情感参考音频相关字段
+            "emotion_reference_audio",
+            "emotion_reference_status",
+            "emotion_mode",
         ]:
             if prev.get(key) is not None:
                 seg[key] = prev.get(key)
@@ -950,6 +962,18 @@ def synthesize_segments(
         emotion_text = override_emotion or entry.get("emotion") or speaker_profile.get("emo_text") or speaker_defaults.get("emo_text")
         emo_audio_prompt = speaker_profile.get("emo_audio_prompt")
         emo_vector = speaker_profile.get("emo_vector")
+
+        # 检查是否有情感参考音频录制
+        entry_emotion_mode = entry.get("emotion_mode", "text")
+        entry_emotion_audio = entry.get("emotion_reference_audio")
+
+        # 如果片段指定了使用音频模式且有参考音频，优先使用
+        if entry_emotion_mode == "audio" and entry_emotion_audio and Path(entry_emotion_audio).exists():
+            emo_mode = "audio"
+            emo_audio_prompt = entry_emotion_audio
+        elif entry_emotion_mode == "text" and emotion_text:
+            emo_mode = "text"
+
         # 确保 emo_alpha 是 float 类型，避免类型错误
         emo_alpha_raw = speaker_profile.get("emo_alpha") or speaker_defaults.get("emo_alpha") or generation_defaults.get("emo_alpha") or 1.0
         emo_alpha = float(emo_alpha_raw) if emo_alpha_raw is not None else 1.0
@@ -981,6 +1005,9 @@ def synthesize_segments(
             tts_kwargs["emo_text"] = emotion_text
         elif emo_mode == "audio" and emo_audio_prompt:
             tts_kwargs["emo_audio_prompt"] = emo_audio_prompt
+            # 确保不传递文本情感参数
+            tts_kwargs.pop("use_emo_text", None)
+            tts_kwargs.pop("emo_text", None)
         elif emo_mode == "vector" and emo_vector:
             tts_kwargs["emo_vector"] = emo_vector
 
