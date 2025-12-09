@@ -127,10 +127,11 @@ class MarkdownScriptParser:
 
     DIRECTIVE_PATTERN = re.compile(r"^[（(](?P<content>.+)[）)]$")
 
-    def __init__(self, language: Optional[str] = None):
+    def __init__(self, language: Optional[str] = None, valid_speakers: Optional[set[str]] = None):
         self.language = language
         self._text_samples: List[str] = []
         self._detected_language: Optional[str] = None
+        self.valid_speakers: set[str] = valid_speakers or set()
 
     def parse(self, script_path: Path) -> ParseResult:
         if not script_path.exists():
@@ -209,23 +210,25 @@ class MarkdownScriptParser:
                 continue
 
             speaker_match = self.SPEAKER_PATTERN.match(stripped)
-            if speaker_match and self.is_valid_speaker_name(speaker_match.group("name").strip()) and self._looks_like_speaker_header(speaker_match.group("rest")):
-                flush_active_segment()
-                if chapter_id is None:
-                    ensure_chapter("ch00")
-                raw_rest = speaker_match.group("rest").strip()
-                rest_text, emotion_from_line = self._extract_emotion_markers(raw_rest)
-                active_segment = {
-                    "chapter_id": chapter_id,
-                    "chapter_title": chapter_title or "",
-                    "speaker_id": speaker_match.group("name").strip().lower(),
-                    "emotion": emotion_from_line,
-                    "lines": [rest_text] if rest_text else [],
-                }
-                if pending_directives:
-                    # `pending_directives` will get attached when the segment is flushed
-                    pass
-                continue
+            if speaker_match:
+                speaker_name = speaker_match.group("name").strip()
+                if self.is_valid_speaker_name(speaker_name) and self._looks_like_speaker_header(speaker_match.group("rest")):
+                    flush_active_segment()
+                    if chapter_id is None:
+                        ensure_chapter("ch00")
+                    raw_rest = speaker_match.group("rest").strip()
+                    rest_text, emotion_from_line = self._extract_emotion_markers(raw_rest)
+                    active_segment = {
+                        "chapter_id": chapter_id,
+                        "chapter_title": chapter_title or "",
+                        "speaker_id": speaker_name.lower(),
+                        "emotion": emotion_from_line,
+                        "lines": [rest_text] if rest_text else [],
+                    }
+                    if pending_directives:
+                        # `pending_directives` will get attached when the segment is flushed
+                        pass
+                    continue
 
             if not stripped:
                 if active_segment and active_segment["lines"] and active_segment["lines"][-1] != "":
@@ -329,10 +332,9 @@ class MarkdownScriptParser:
             if re.match(pattern, candidate):
                 return True
 
-        # 检查是否是直接的说话内容（短句，没有复杂标点）
-        # 如果rest很短（小于60字符）且不包含句子结束符，可能是直接说话
-        if len(candidate) < 60 and not any(char in candidate[:40] for char in '。！？；'):
-            return True
+        # 如果rest部分包含多个**（Markdown粗体格式），说明这是内容而不是speaker header
+        if candidate.count('**') >= 2:
+            return False
 
         # 检查是否是格式化的内容（如**xxx**）
         # 如果开头是**但不是情绪标记，可能是Markdown格式
@@ -345,10 +347,28 @@ class MarkdownScriptParser:
             if re.match(r'^\*\*[^*]{1,30}\*\*', candidate):
                 return True
 
+        # 检查是否是直接的说话内容（短句，没有复杂标点）
+        # 如果rest很短（小于60字符）且不包含句子结束符，可能是直接说话
+        if len(candidate) < 60 and not any(char in candidate[:40] for char in '。！？；'):
+            return True
+
         return False
 
     def is_valid_speaker_name(self, name: str) -> bool:
-        """验证speaker名称是否合理"""
+        """验证speaker名称是否合理 - 基于配置文件中定义的speaker列表"""
+        if not name:
+            return False
+        
+        # 如果配置了valid_speakers，只检查是否在列表中（不区分大小写）
+        if self.valid_speakers:
+            name_lower = name.lower()
+            # 检查精确匹配（不区分大小写）
+            if name_lower in {s.lower() for s in self.valid_speakers}:
+                return True
+            # 如果不在列表中，直接返回False
+            return False
+        
+        # 如果没有配置valid_speakers（向后兼容），使用原有的启发式检查
         # 长度检查：speaker名称通常很短（1-8个字符）
         if len(name) > 8:
             return False
@@ -360,6 +380,38 @@ class MarkdownScriptParser:
         # 内容检查：不应该包含常见句子标志
         sentence_indicators = ['问题', '这是', '我们', '你们', '他们', '如果', '但是', '所以', '因此', '回到', '根本']
         if any(indicator in name for indicator in sentence_indicators):
+            return False
+
+        # 排除数字词、常见单词等（这些通常是列表项或普通词汇）
+        invalid_speakers = {
+            # 英文数字词
+            'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+            'first', 'second', 'third', 'fourth', 'fifth',
+            # 英文常见词汇
+            'step', 'point', 'note', 'tip', 'hint',
+            'example', 'case', 'fact', 'truth',
+            'yes', 'no', 'ok', 'okay', 'sure', 'thanks',
+            'introduction', 'conclusion', 'summary', 'chapter',
+            'music', 'sound', 'sfx', 'transition', 'fade',
+            # 中文总结和常用词汇
+            '总结', '总结一下', '总结完毕', '总之', '总的来说',
+            '首先', '其次', '最后', '接下来', '然后', '另外', '还有', '接着',
+            '第一', '第二', '第三', '第四', '第五', '第六', '第七', '第八', '第九', '第十',
+            '一方面', '另一方面', '换句话说', '简单来说', '实际上', '事实上',
+            '简单说', '句话说', '换言之', '具体来说', '详细来说',
+            '开场白', '开场', '结束', '结束语', '结语',
+            '过门', '过渡', '转场', '片头', '片尾', '开场音乐', '背景音乐',
+            '提问', '回答', '解答', '解析', '说明', '解释', '阐述', '论述',
+            '举例', '例如', '比如', '以此类推', '总而言之', '概括来说',
+            '重点', '要点', '关键', '核心', '精髓', '精华', '本质', '核心内容',
+            '开场hook', 'hook', 'call', 'callin', 'callout'
+        }
+        if name.lower() in invalid_speakers:
+            return False
+
+        # 检查是否包含数字（除了可能是人名的特殊情况）
+        if re.search(r'\d', name) and len(name) <= 4:
+            # 允许4个字符以内的纯数字（但这种情况很少见）
             return False
 
         return True
@@ -399,6 +451,36 @@ def load_speaker_config(path: Path) -> Dict[str, Dict[str, object]]:
 
     defaults = data.get("auto_speaker_defaults") or {}
     default_tts = data.get("default_tts") or {}
+    
+    # 确保默认值中的数值参数是正确的类型（YAML可能解析为字符串）
+    if "emo_alpha" in defaults:
+        try:
+            defaults["emo_alpha"] = float(defaults["emo_alpha"])
+        except (ValueError, TypeError):
+            defaults["emo_alpha"] = 1.0
+    if "interval_silence" in defaults:
+        try:
+            defaults["interval_silence"] = float(defaults["interval_silence"])
+        except (ValueError, TypeError):
+            defaults["interval_silence"] = 0.2
+    
+    # 确保 default_tts 中的数值参数是正确的类型
+    for key in ["temperature", "top_p", "top_k", "emo_alpha"]:
+        if key in default_tts:
+            try:
+                if key == "top_k":
+                    default_tts[key] = int(float(default_tts[key]))
+                else:
+                    default_tts[key] = float(default_tts[key])
+            except (ValueError, TypeError):
+                if key == "emo_alpha":
+                    default_tts[key] = 1.0
+                elif key == "temperature":
+                    default_tts[key] = 0.8
+                elif key == "top_p":
+                    default_tts[key] = 0.8
+                elif key == "top_k":
+                    default_tts[key] = 30
 
     base_dir = path.parent
     voice_root_raw = data.get("voice_root")
@@ -417,6 +499,17 @@ def load_speaker_config(path: Path) -> Dict[str, Dict[str, object]]:
                 merged.get("emo_audio_prompt"), base_dir, voice_root_path
             )
         merged.setdefault("voice_prompt", None)
+        # 确保数值参数是正确的类型（YAML可能解析为字符串）
+        if "emo_alpha" in merged:
+            try:
+                merged["emo_alpha"] = float(merged["emo_alpha"])
+            except (ValueError, TypeError):
+                merged["emo_alpha"] = 1.0
+        if "interval_silence" in merged:
+            try:
+                merged["interval_silence"] = float(merged["interval_silence"])
+            except (ValueError, TypeError):
+                merged["interval_silence"] = 0.2
         result[key.lower()] = merged
 
     return {
@@ -603,9 +696,22 @@ def merge_manifests(old: Dict[str, object], new: Dict[str, object]) -> Dict[str,
 
 
 def refresh_segment_status_by_files(manifest: Dict[str, object]) -> None:
+    """刷新段落状态：检查文件是否存在，如果存在则更新状态和音频时长"""
     for entry in manifest.get("segments", []):
         if entry.get("status") == "done":
+            # 即使状态是done，也检查并更新音频时长（如果缺失）
+            output_path = entry.get("output_path")
+            if output_path and Path(output_path).exists():
+                if not entry.get("actual_duration_sec"):
+                    try:
+                        import librosa
+                        actual_duration = librosa.get_duration(path=output_path)
+                        entry["actual_duration_sec"] = round(actual_duration, 3)
+                        entry["timing_accuracy"] = "verified"
+                    except Exception:
+                        pass
             continue
+        
         output_path = entry.get("output_path")
         if not output_path:
             continue
@@ -613,6 +719,15 @@ def refresh_segment_status_by_files(manifest: Dict[str, object]) -> None:
             entry["status"] = "done"
             entry["completed_at"] = entry.get("completed_at") or datetime.utcnow().isoformat()
             entry["error"] = None
+            # 测量实际音频时长
+            try:
+                import librosa
+                actual_duration = librosa.get_duration(path=output_path)
+                entry["actual_duration_sec"] = round(actual_duration, 3)
+                entry["timing_accuracy"] = "verified"
+            except Exception:
+                # 如果测量失败，至少标记为done
+                entry["timing_accuracy"] = "estimated"
 
 
 def prepare_manifest(
@@ -621,9 +736,27 @@ def prepare_manifest(
     out_root: Path,
     language: Optional[str] = None,
 ) -> Tuple[Dict[str, object], Dict[str, Dict[str, object]], ParseResult]:
-    parser = MarkdownScriptParser(language=language)
-    parse_result = parser.parse(script_path)
+    # 先加载配置，提取所有可用的speaker名称（包括别名）
     config = load_speaker_config(config_path)
+    speakers = config.get("speakers", {})
+    
+    # 构建有效的speaker名称集合（包括原始名称和别名）
+    valid_speaker_names: set[str] = set()
+    for speaker_key, speaker_config in speakers.items():
+        if not isinstance(speaker_config, dict):
+            continue
+        # 添加原始名称（不区分大小写）
+        valid_speaker_names.add(speaker_key)
+        # 添加别名
+        aliases = speaker_config.get("aliases", [])
+        if isinstance(aliases, list):
+            for alias in aliases:
+                if isinstance(alias, str):
+                    valid_speaker_names.add(alias)
+    
+    # 使用有效的speaker列表初始化parser
+    parser = MarkdownScriptParser(language=language, valid_speakers=valid_speaker_names)
+    parse_result = parser.parse(script_path)
     episode = script_path.stem
     final_out_root = normalize_out_root(out_root, episode)
     manifest = build_manifest(parse_result, config, final_out_root, episode)
@@ -676,6 +809,7 @@ def synthesize_segments(
     for entry in segments:
         if filter_set and entry.get("segment_id") not in filter_set:
             continue
+        # only_pending: 跳过已完成(done)的，但处理失败(failed)和待处理(pending)的
         if only_pending and entry.get("status") == "done":
             continue
         selected_segments.append(entry)
@@ -753,8 +887,18 @@ def synthesize_segments(
 
         segment_id = entry["segment_id"]
         progress_ratio = idx / total
+        # 计算预计剩余时间
+        if idx > 1:
+            elapsed = time.time() - start_time
+            avg_time_per_segment = elapsed / (idx - 1)
+            remaining_segments = total - idx
+            estimated_remaining = avg_time_per_segment * remaining_segments
+            progress_msg = f"合成 {segment_id} ({idx}/{total}) - 预计剩余: {int(estimated_remaining)}s"
+        else:
+            progress_msg = f"合成 {segment_id} ({idx}/{total})"
+        
         if progress_cb:
-            progress_cb(progress_ratio, f"合成 {segment_id}")
+            progress_cb(progress_ratio, progress_msg)
 
         speaker_id = entry["speaker"]
         speaker_profile = speakers.get(speaker_id)
@@ -781,20 +925,48 @@ def synthesize_segments(
         output_path = Path(entry["output_path"])
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        interval = speaker_profile.get("interval_silence") or speaker_defaults.get("interval_silence") or 0
-        interval_ms = int(float(interval) * 1000)
-
+        # 获取覆盖配置
         override_cfg = overrides.get(segment_id, {})
         override_text = override_cfg.get("text")
         override_emotion = override_cfg.get("emotion")
+
+        # 输入验证：检查文本长度
+        text_to_synthesize = override_text or entry.get("text", "")
+        if not text_to_synthesize or not text_to_synthesize.strip():
+            entry["status"] = "skipped"
+            entry["error"] = f"Empty text for segment {segment_id}"
+            emit(f"[{segment_id}] Skipped - empty text")
+            continue
+
+        # 检查文本长度是否过长（可能导致内存问题）
+        max_text_length = 5000  # 可配置
+        if len(text_to_synthesize) > max_text_length:
+            emit(f"[{segment_id}] Warning: Text length ({len(text_to_synthesize)}) exceeds recommended limit ({max_text_length})")
+
+        interval = speaker_profile.get("interval_silence") or speaker_defaults.get("interval_silence") or 0
+        interval_ms = int(float(interval) * 1000)
 
         emo_mode = (speaker_profile.get("emo_mode") or speaker_defaults.get("emo_mode") or "text").lower()
         emotion_text = override_emotion or entry.get("emotion") or speaker_profile.get("emo_text") or speaker_defaults.get("emo_text")
         emo_audio_prompt = speaker_profile.get("emo_audio_prompt")
         emo_vector = speaker_profile.get("emo_vector")
-        emo_alpha = float(speaker_profile.get("emo_alpha") or speaker_defaults.get("emo_alpha") or 1.0)
+        # 确保 emo_alpha 是 float 类型，避免类型错误
+        emo_alpha_raw = speaker_profile.get("emo_alpha") or speaker_defaults.get("emo_alpha") or generation_defaults.get("emo_alpha") or 1.0
+        emo_alpha = float(emo_alpha_raw) if emo_alpha_raw is not None else 1.0
 
         tts_kwargs = dict(generation_defaults)
+        # 确保所有数值参数都是正确的类型
+        for key in ["emo_alpha", "temperature", "top_p", "top_k"]:
+            if key in tts_kwargs and tts_kwargs[key] is not None:
+                try:
+                    tts_kwargs[key] = float(tts_kwargs[key])
+                except (ValueError, TypeError):
+                    # 如果转换失败，使用默认值或移除该参数
+                    if key == "emo_alpha":
+                        tts_kwargs[key] = 1.0
+                    else:
+                        tts_kwargs.pop(key, None)
+        
         tts_kwargs.update(
             spk_audio_prompt=str(voice_prompt_path),
             text=override_text or entry["text"],
@@ -814,24 +986,71 @@ def synthesize_segments(
 
         entry["status"] = "running"
         entry["started_at"] = datetime.utcnow().isoformat()
-        emit(f"[{segment_id}] Start synthesis (speaker={speaker_id})")
+        emit(f"[{segment_id}] Start synthesis (speaker={speaker_id}, text_length={len(entry.get('text', ''))})")
         try:
             seg_start = time.time()
+            # 添加超时处理
+            if timeout_enabled:
+                import signal
+                def timeout_handler(signum, frame):
+                    raise TimeoutError(f"Segment {segment_id} synthesis timeout after {SEGMENT_TIMEOUT}s")
+                
+                # 注意：signal.alarm只在Unix系统上可用，Windows需要使用threading.Timer
+                if hasattr(signal, 'SIGALRM'):
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(int(SEGMENT_TIMEOUT))
+            
             tts.infer(**tts_kwargs)
+            
+            if timeout_enabled and hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)  # 取消超时
 
             entry["status"] = "done"
             entry["completed_at"] = datetime.utcnow().isoformat()
             entry["duration_sec"] = round(time.time() - seg_start, 3)
             entry["error"] = None
+
+            # 测量实际音频时长（关键修复）
+            try:
+                # 尝试使用librosa测量实际音频时长
+                import librosa
+                actual_duration = librosa.get_duration(path=output_path)
+                entry["actual_duration_sec"] = round(actual_duration, 3)
+                entry["timing_accuracy"] = "verified"
+            except Exception as audio_err:
+                # 如果测量失败，回退到推理时间
+                entry["actual_duration_sec"] = entry["duration_sec"]
+                entry["timing_accuracy"] = "estimated"
+                print(f"警告: 无法测量音频实际时长 {segment_id}: {audio_err}")
+
+            # 记录最终使用的文本（用于字幕一致性）
+            entry["final_text"] = entry.get("text", "")
             if override_text:
                 entry["text"] = override_text
             if override_emotion:
                 entry["emotion"] = override_emotion
-            emit(f"[{segment_id}] Completed in {entry['duration_sec']}s")
-        except Exception as exc:  # pragma: no cover - depends on runtime env
+            emit(f"[{segment_id}] Completed in {entry['duration_sec']}s (audio: {entry.get('actual_duration_sec', 'N/A')}s)")
+        except TimeoutError as exc:
             entry["status"] = "failed"
             entry["error"] = str(exc)
             emit(f"[{segment_id}] FAILED: {exc}")
+            emit(f"[{segment_id}] This segment exceeded the timeout limit ({SEGMENT_TIMEOUT}s)")
+        except Exception as exc:  # pragma: no cover - depends on runtime env
+            import traceback
+            error_trace = traceback.format_exc()
+            entry["status"] = "failed"
+            entry["error"] = str(exc)
+            entry["error_traceback"] = error_trace  # 保存完整堆栈到manifest
+            emit(f"[{segment_id}] FAILED: {exc}")
+            # 对于所有失败，记录关键错误信息（完整堆栈保存到manifest中）
+            emit(f"[{segment_id}] Error type: {type(exc).__name__}")
+            # 只打印堆栈的关键部分，避免日志过长
+            trace_lines = error_trace.split('\n')
+            for line in trace_lines[:10]:  # 只显示前10行
+                if line.strip():
+                    emit(f"[{segment_id}] {line}")
+            if len(trace_lines) > 10:
+                emit(f"[{segment_id}] ... (full traceback saved in manifest)")
 
     counts = Counter(entry.get("status", "pending") for entry in segments)
     manifest.setdefault("stats", {})

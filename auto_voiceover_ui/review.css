@@ -142,3 +142,357 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+/* 字幕编辑区域样式 */
+.subtitle-editor-panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 16px;
+}
+
+.subtitle-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.subtitle-controls .checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.subtitle-stats {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(0, 123, 255, 0.1);
+  color: #007bff;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.badge:has(#timingAccuracyBadge[style*="verified"]) {
+  background: rgba(40, 167, 69, 0.1);
+  color: #28a745;
+}
+
+.badge:has(#timingAccuracyBadge[style*="estimated"]) {
+  background: rgba(255, 193, 7, 0.1);
+  color: #ffc107;
+}
+
+.subtitle-table {
+  width: 100%;
+  background: var(--card);
+  border-radius: 8px;
+  overflow: hidden;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.subtitle-table th {
+  background: rgba(0, 123, 255, 0.1);
+  color: #007bff;
+  padding: 12px 16px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 2px solid rgba(0, 123, 255, 0.2);
+}
+
+.subtitle-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+}
+
+.subtitle-table tbody tr:hover {
+  background: rgba(0, 123, 255, 0.05);
+}
+
+.time-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  text-align: center;
+  background: var(--bg);
+  color: var(--fg);
+  transition: all 0.2s ease;
+  min-width: 90px;  /* 确保时间输入框有足够宽度 */
+}
+
+.time-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.subtitle-text {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 60px;
+  max-height: 120px;  /* 限制最大高度 */
+  overflow-y: auto;   /* 超出时显示滚动条 */
+  transition: all 0.2s ease;
+}
+
+/* 字幕预览行的特殊样式 */
+.subtitle-table tr:hover .subtitle-text {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* 字幕内容显示优化 */
+.subtitle-text::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* 长字幕的滚动提示 */
+.subtitle-text::-webkit-scrollbar {
+  width: 6px;
+}
+
+.subtitle-text::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+.subtitle-text::-webkit-scrollbar-thumb {
+  background: rgba(0, 123, 255, 0.3);
+  border-radius: 3px;
+}
+
+.subtitle-text::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 123, 255, 0.5);
+}
+
+.subtitle-text:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.placeholder-text {
+  font-size: 16px;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  padding: 40px;
+  border: 2px dashed var(--card-border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.timeline-visualization {
+  margin: 20px 0;
+  padding: 20px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.timeline-bar {
+  height: 30px;
+  background: linear-gradient(90deg, #28a745, #007bff, #ffc107);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.timeline-segment {
+  position: absolute;
+  height: 100%;
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.timeline-segment:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.batch-edit-tools {
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.batch-edit-tools h4 {
+  margin: 0 0 12px 0;
+  color: var(--fg);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.export-options {
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.export-options h4 {
+  margin: 0 0 12px 0;
+  color: var(--fg);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.export-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.export-options input[type="radio"] {
+  margin: 0;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #1e7e34;
+  transform: translateY(-1px);
+}
+
+.btn-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: #138496;
+}
+
+.btn-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-xs {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c82333;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .subtitle-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .subtitle-stats {
+    justify-content: center;
+  }
+
+  .subtitle-table {
+    font-size: 12px;
+  }
+
+  .subtitle-table th,
+  .subtitle-table td {
+    padding: 8px;
+  }
+
+  .batch-edit-tools div,
+  .export-options div {
+    flex-wrap: wrap;
+  }
+}

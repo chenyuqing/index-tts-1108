@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request, send_from_directory
 from urllib.parse import quote, unquote
+from datetime import datetime
 
 from tools.auto_voiceover import (
     prepare_manifest,
@@ -23,6 +24,7 @@ from tools.auto_voiceover import (
     merge_manifests,
     build_review_output_path,
 )
+from tools.subtitle_generator import SubtitleGenerator
 # from tools.epub_ingest import convert_epub, DEFAULT_SPEAKER as EPUB_DEFAULT_SPEAKER
 EPUB_DEFAULT_SPEAKER = "default"
 
@@ -576,11 +578,34 @@ def api_generate() -> Any:
 
         job_control["logs"] = []
 
+        # 定期保存manifest的计数器
+        manifest_save_counter = [0]
+        MANIFEST_SAVE_INTERVAL = 10
+        
         def log_cb(message: str) -> None:
             job_control["logs"].append(message)
             if len(job_control["logs"]) > 200:
                 job_control["logs"] = job_control["logs"][-200:]
             print(message)
+            
+            # 定期保存manifest（每N条日志保存一次）
+            manifest_save_counter[0] += 1
+            if manifest_save_counter[0] >= MANIFEST_SAVE_INTERVAL:
+                manifest_save_counter[0] = 0
+                try:
+                    from collections import Counter
+                    segments = manifest.get("segments", [])
+                    counts = Counter(e.get("status", "pending") for e in segments)
+                    manifest["stats"].update({
+                        "total_segments": len(segments),
+                        "status_counts": dict(counts),
+                        "completed_segments": counts.get("done", 0),
+                        "failed_segments": counts.get("failed", 0),
+                    })
+                    manifest["updated_at"] = datetime.utcnow().isoformat()
+                    save_manifest(manifest, manifest_path)
+                except Exception:
+                    pass  # 保存失败不影响主流程
 
         with tts_infer_lock:
             manifest, logs = synthesize_segments(
@@ -594,6 +619,11 @@ def api_generate() -> Any:
     except Exception as exc:
         job_control["status"] = "idle"
         job_control["requested"] = None
+        # 即使出错也保存manifest，保留进度
+        try:
+            save_manifest(manifest, manifest_path)
+        except Exception:
+            pass
         raise
     else:
         save_manifest(manifest, manifest_path)
@@ -673,6 +703,136 @@ def api_segment_regenerate() -> Any:
         audio_url = f"/api/audio?path={quote(str(review_path))}"
 
     return jsonify({"logs": logs, "audio_url": audio_url})
+
+
+# 字幕生成API端点
+@app.post("/api/subtitles/preview")
+def api_subtitles_preview() -> Any:
+    """生成字幕预览"""
+    data = request.get_json(force=True, silent=True) or {}
+    manifest_path = data.get("manifest_path")
+
+    if not manifest_path:
+        return jsonify({"error": "missing_manifest_path"}), 400
+
+    manifest_path = Path(manifest_path)
+    if not manifest_path.exists():
+        return jsonify({"error": "manifest_not_found"}), 404
+
+    include_speaker = bool(data.get("include_speaker", True))
+
+    try:
+        generator = SubtitleGenerator()
+
+        # 读取manifest
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+
+        # 验证时间线
+        verified, warnings = generator.verify_and_update_timeline(manifest)
+
+        if not verified:
+            return jsonify({
+                "error": "timeline_verification_failed",
+                "warnings": warnings
+            }), 400
+
+        # 生成字幕条目
+        entries = generator.generate_subtitle_entries(manifest, include_speaker)
+
+        return jsonify({
+            "subtitles": entries,
+            "total_duration": manifest.get("total_duration_sec", 0),
+            "verified": verified,
+            "warnings": warnings
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"preview_generation_failed: {str(e)}"}), 500
+
+
+@app.post("/api/subtitles/export")
+def api_subtitles_export() -> Any:
+    """导出字幕文件"""
+    data = request.get_json(force=True, silent=True) or {}
+    manifest_path = data.get("manifest_path")
+    edited_subtitles = data.get("edited_subtitles", [])
+    output_format = data.get("format", "srt")
+    include_speaker = bool(data.get("include_speaker", True))
+
+    if not manifest_path:
+        return jsonify({"error": "missing_manifest_path"}), 400
+
+    manifest_path = Path(manifest_path)
+    if not manifest_path.exists():
+        return jsonify({"error": "manifest_not_found"}), 404
+
+    try:
+        generator = SubtitleGenerator()
+
+        # 确定输出路径
+        episode_name = manifest_path.stem.replace("_manifest", "")
+        output_dir = manifest_path.parent / "subtitles"
+        output_dir.mkdir(exist_ok=True)
+
+        if output_format.lower() == "srt":
+            filename = f"{episode_name}.srt"
+            content = generator.generate_srt_content(edited_subtitles)
+        elif output_format.lower() == "vtt":
+            filename = f"{episode_name}.vtt"
+            content = generator.generate_webvtt_content(edited_subtitles)
+        else:
+            return jsonify({"error": "unsupported_format"}), 400
+
+        output_path = output_dir / filename
+
+        # 保存文件
+        if generator.save_subtitle_file(content, str(output_path)):
+            # 同时保存JSON数据（便于后续编辑）
+            json_data = {
+                "entries": edited_subtitles,
+                "manifest_path": str(manifest_path),
+                "generated_at": datetime.now().isoformat(),
+                "format": output_format
+            }
+            json_path = output_dir / f"{episode_name}_subtitles.json"
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+
+            return jsonify({
+                "success": True,
+                "download_url": f"/api/subtitles/download?path={quote(str(output_path))}",
+                "file_path": str(output_path),
+                "json_path": str(json_path),
+                "message": "字幕文件已生成"
+            })
+        else:
+            return jsonify({"error": "file_save_failed"}), 500
+
+    except Exception as e:
+        return jsonify({"error": f"export_failed: {str(e)}"}), 500
+
+
+@app.get("/api/subtitles/download")
+def api_subtitles_download() -> Any:
+    """下载字幕文件"""
+    file_path = request.args.get("path")
+    if not file_path:
+        return jsonify({"error": "missing_path"}), 400
+
+    try:
+        file_path = Path(unquote(file_path))
+        if not file_path.exists():
+            return jsonify({"error": "file_not_found"}), 404
+
+        return send_from_directory(
+            file_path.parent,
+            file_path.name,
+            as_attachment=True,
+            download_name=file_path.name
+        )
+    except Exception as e:
+        return jsonify({"error": f"download_failed: {str(e)}"}), 500
 
 
 def create_app() -> Flask:

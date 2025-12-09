@@ -112,7 +112,7 @@ class IndexTTS2:
                 print(f"{e!r}")
                 self.use_cuda_kernel = False
 
-        self.extract_features = SeamlessM4TFeatureExtractor.from_pretrained("facebook/w2v-bert-2.0")
+        self.extract_features = SeamlessM4TFeatureExtractor.from_pretrained("facebook/w2v-bert-2.0", local_files_only=True)
         self.semantic_model, self.semantic_mean, self.semantic_std = build_semantic_model(
             os.path.join(self.model_dir, self.cfg.w2v_stat))
         self.semantic_model = self.semantic_model.to(self.device)
@@ -121,7 +121,7 @@ class IndexTTS2:
         self.semantic_std = self.semantic_std.to(self.device)
 
         semantic_codec = build_semantic_codec(self.cfg.semantic_codec)
-        semantic_code_ckpt = hf_hub_download("amphion/MaskGCT", filename="semantic_codec/model.safetensors")
+        semantic_code_ckpt = hf_hub_download("amphion/MaskGCT", filename="semantic_codec/model.safetensors", local_files_only=True)
         safetensors.torch.load_model(semantic_codec, semantic_code_ckpt)
         self.semantic_codec = semantic_codec.to(self.device)
         self.semantic_codec.eval()
@@ -151,7 +151,7 @@ class IndexTTS2:
 
         # load campplus_model
         campplus_ckpt_path = hf_hub_download(
-            "funasr/campplus", filename="campplus_cn_common.bin"
+            "funasr/campplus", filename="campplus_cn_common.bin", local_files_only=True
         )
         campplus_model = CAMPPlus(feat_dim=80, embedding_size=192)
         campplus_model.load_state_dict(torch.load(campplus_ckpt_path, map_location="cpu"))
@@ -160,7 +160,7 @@ class IndexTTS2:
         print(">> campplus_model weights restored from:", campplus_ckpt_path)
 
         bigvgan_name = self.cfg.vocoder.name
-        self.bigvgan = bigvgan.BigVGAN.from_pretrained(bigvgan_name, use_cuda_kernel=self.use_cuda_kernel)
+        self.bigvgan = bigvgan.BigVGAN.from_pretrained(bigvgan_name, use_cuda_kernel=self.use_cuda_kernel, local_files_only=True)
         self.bigvgan = self.bigvgan.to(self.device)
         self.bigvgan.remove_weight_norm()
         self.bigvgan.eval()
@@ -380,6 +380,18 @@ class IndexTTS2:
               verbose=False, max_text_tokens_per_segment=120, stream_return=False, quick_streaming_tokens=0, **generation_kwargs):
         print(">> starting inference...")
         self._set_gr_progress(0, "starting inference...")
+        
+        # 确保所有数值参数都是正确的类型，避免类型比较错误
+        try:
+            interval_silence = int(float(interval_silence)) if interval_silence is not None else 200
+        except (ValueError, TypeError):
+            interval_silence = 200
+        
+        try:
+            max_text_tokens_per_segment = int(float(max_text_tokens_per_segment)) if max_text_tokens_per_segment is not None else 120
+        except (ValueError, TypeError):
+            max_text_tokens_per_segment = 120
+        
         if verbose:
             print(f"origin text:{text}, spk_audio_prompt:{spk_audio_prompt}, "
                   f"emo_audio_prompt:{emo_audio_prompt}, emo_alpha:{emo_alpha}, "
@@ -391,6 +403,23 @@ class IndexTTS2:
             # we're using a text or emotion vector guidance; so we must remove
             # "emotion reference voice", to ensure we use correct emotion mixing!
             emo_audio_prompt = None
+
+        # 确保 emo_alpha 是 float 类型，避免类型错误
+        try:
+            if isinstance(emo_alpha, str):
+                emo_alpha = float(emo_alpha)
+            elif emo_alpha is None:
+                emo_alpha = 1.0
+            else:
+                emo_alpha = float(emo_alpha)
+        except (ValueError, TypeError) as e:
+            print(f">> Warning: Failed to convert emo_alpha ({emo_alpha}, type: {type(emo_alpha)}) to float: {e}")
+            emo_alpha = 1.0
+        try:
+            emo_alpha = max(0.0, min(1.0, emo_alpha))  # 确保在 [0, 1] 范围内
+        except TypeError as e:
+            print(f">> Error: emo_alpha type check failed. emo_alpha={emo_alpha}, type={type(emo_alpha)}")
+            raise
 
         if use_emo_text:
             # automatically generate emotion vectors from text prompt
@@ -510,14 +539,37 @@ class IndexTTS2:
             print("max_text_tokens_per_segment:", max_text_tokens_per_segment)
             print(*segments, sep="\n")
         do_sample = generation_kwargs.pop("do_sample", True)
-        top_p = generation_kwargs.pop("top_p", 0.8)
-        top_k = generation_kwargs.pop("top_k", 30)
-        temperature = generation_kwargs.pop("temperature", 0.8)
+        # 确保所有数值参数都是正确的类型，避免类型比较错误
+        def safe_float(value, default):
+            try:
+                if value is None:
+                    return default
+                if isinstance(value, str):
+                    return float(value)
+                return float(value)
+            except (ValueError, TypeError) as e:
+                print(f">> Warning: Failed to convert {value} (type: {type(value)}) to float: {e}, using default {default}")
+                return default
+        
+        def safe_int(value, default):
+            try:
+                if value is None:
+                    return default
+                if isinstance(value, str):
+                    return int(float(value))  # 先转float再转int，处理"1.0"这种情况
+                return int(value)
+            except (ValueError, TypeError) as e:
+                print(f">> Warning: Failed to convert {value} (type: {type(value)}) to int: {e}, using default {default}")
+                return default
+        
+        top_p = safe_float(generation_kwargs.pop("top_p", 0.8), 0.8)
+        top_k = safe_int(generation_kwargs.pop("top_k", 30), 30)
+        temperature = safe_float(generation_kwargs.pop("temperature", 0.8), 0.8)
         autoregressive_batch_size = 1
-        length_penalty = generation_kwargs.pop("length_penalty", 0.0)
-        num_beams = generation_kwargs.pop("num_beams", 3)
-        repetition_penalty = generation_kwargs.pop("repetition_penalty", 10.0)
-        max_mel_tokens = generation_kwargs.pop("max_mel_tokens", 1500)
+        length_penalty = safe_float(generation_kwargs.pop("length_penalty", 0.0), 0.0)
+        num_beams = safe_int(generation_kwargs.pop("num_beams", 3), 3)
+        repetition_penalty = safe_float(generation_kwargs.pop("repetition_penalty", 10.0), 10.0)
+        max_mel_tokens = safe_int(generation_kwargs.pop("max_mel_tokens", 1500), 1500)
         sampling_rate = 22050
 
         wavs = []
@@ -713,11 +765,12 @@ def find_most_similar_cosine(query_vector, matrix):
 class QwenEmotion:
     def __init__(self, model_dir):
         self.model_dir = model_dir
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_dir, local_files_only=True)
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_dir,
             torch_dtype="float16",  # "auto"
-            device_map="auto"
+            device_map="auto",
+            local_files_only=True
         )
         self.prompt = "文本情感分类"
         self.cn_key_to_en = {
@@ -749,6 +802,16 @@ class QwenEmotion:
         self.min_score = 0.0
 
     def clamp_score(self, value):
+        # 确保 value 是 float 类型，避免类型比较错误
+        try:
+            if isinstance(value, str):
+                value = float(value)
+            elif value is None:
+                value = 0.0
+            else:
+                value = float(value)
+        except (ValueError, TypeError):
+            value = 0.0
         return max(self.min_score, min(self.max_score, value))
 
     def convert(self, content):
