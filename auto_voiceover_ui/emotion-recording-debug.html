@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <title>情感录制 - 调试版</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+  <style>
+    body { padding: 20px; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+    .segment-item { cursor: pointer; padding: 10px; margin: 5px 0; border: 1px solid #ddd; }
+    .segment-item:hover { background: #f0f0f0; }
+    .segment-item.recorded { background: #e8f5e9; }
+    .segment-item.selected { background: #e3f2fd; }
+    #status { padding: 10px; background: #f5f5f5; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>情感录制 - 调试版</h1>
+  <p id="status">状态：等待初始化...</p>
+
+  <!-- 基础配置 -->
+  <div class="section">
+    <h2>项目配置</h2>
+    <div>
+      <label>脚本: <input id="scriptPath" type="text" value="test_input/scripts/cursor-composor-CN.md" /></label>
+    </div>
+    <div>
+      <label>配置: <input id="configPath" type="text" value="test_input/speakers.yaml" /></label>
+    </div>
+    <div>
+      <label>输出: <input id="outRoot" type="text" value="test_input/DUB" /></label>
+    </div>
+    <div>
+      <label>模型: <input id="modelDir" type="text" value="checkpoints" /></label>
+    </div>
+    <button id="loadSegmentsBtn" class="primary">加载片段列表</button>
+  </div>
+
+  <!-- 录制面板 -->
+  <div class="section" id="recordingPanel" style="display: none;">
+    <h2>录制控制</h2>
+    <div>
+      <span>未录制: <span id="unrecordedCount">0</span></span>
+      <span>已录制: <span id="recordedCount">0</span></span>
+    </div>
+
+    <div>
+      <h3 id="currentSegmentTitle">请选择一个片段</h3>
+      <p id="currentSegmentText"></p>
+      <p id="currentSegmentEmotion"></p>
+    </div>
+
+    <button id="startRecordingBtn" disabled>开始录制</button>
+  </div>
+
+  <!-- 片段列表 -->
+  <div class="section" id="segmentsPanel" style="display: none;">
+    <h2>片段列表</h2>
+    <div id="segmentsList"></div>
+  </div>
+
+  <script src="/ui/emotion-recording-debug.js"></script>
+</body>
+</html>
