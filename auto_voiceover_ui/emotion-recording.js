@@ -391,7 +391,19 @@ async function startRecording() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
 
-    mediaRecorder = new MediaRecorder(stream);
+    // 检查浏览器支持的音频格式
+    let mimeType = "audio/webm;codecs=opus";
+    if (MediaRecorder.isTypeSupported) {
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        mimeType = "audio/webm;codecs=opus";
+      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        mimeType = "audio/mp4";
+      } else if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+        mimeType = "audio/ogg;codecs=opus";
+      }
+    }
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         audioChunks.push(event.data);
@@ -399,7 +411,7 @@ async function startRecording() {
     };
 
     mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+      const audioBlob = new Blob(audioChunks, { type: mimeType });
       const audioUrl = URL.createObjectURL(audioBlob);
       recordedAudio.src = audioUrl;
       audioPlayback.style.display = "block";
@@ -462,6 +474,7 @@ async function uploadAudio() {
     formData.append("script_path", scriptInput.value);
     formData.append("segment_id", segment.segment_id);
     formData.append("chapter_id", segment.chapter_id);
+    formData.append("speaker", segment.speaker);
 
     const response = await fetch("/api/audio/upload", {
       method: "POST",

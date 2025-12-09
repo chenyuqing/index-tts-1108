@@ -7,9 +7,11 @@ import argparse
 import json
 import logging
 import signal
+import subprocess
 import threading
 import wave
 import io
+import tempfile
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
@@ -855,6 +857,7 @@ def upload_emotion_audio() -> Any:
         segment_id = request.form.get("segment_id")
         chapter_id = request.form.get("chapter_id")
         script_path = request.form.get("script_path")
+        speaker = request.form.get("speaker", "")
 
         if not all([segment_id, chapter_id, script_path]):
             return jsonify({"error": "missing_required_fields"}), 400
@@ -869,10 +872,11 @@ def upload_emotion_audio() -> Any:
         script_name = script_path_obj.stem
         project_name = script_name
 
-        # 从segment_id中提取speaker信息，例如: ch00-01-larei -> leo
+        # 如果前端没有提供speaker，从segment_id中提取
         # segment_id格式: ch00-01-larei
-        parts = segment_id.split("-")
-        speaker = parts[-1] if len(parts) > 2 else "unknown"
+        if not speaker:
+            parts = segment_id.split("-")
+            speaker = parts[-1] if len(parts) > 2 else "unknown"
 
         # 检查是否有文件上传
         if "audio" not in request.files:
@@ -882,51 +886,82 @@ def upload_emotion_audio() -> Any:
         if audio_file.filename == "":
             return jsonify({"error": "empty_filename"}), 400
 
-        # 验证文件类型
-        allowed_extensions = {".wav", ".mp3", ".m4a", ".webm", ".ogg"}
-        file_ext = Path(audio_file.filename).suffix.lower()
-        if file_ext not in allowed_extensions:
-            return jsonify({"error": f"invalid_format: {file_ext}"}), 400
+        # 获取实际的内容类型（不是扩展名）
+        content_type = audio_file.content_type or ""
+        print(f"上传的音频内容类型: {content_type}")
+
+        # 验证文件类型 - 基于内容类型
+        allowed_types = {"audio/webm", "audio/webm;codecs=opus", "audio/mp4", "audio/ogg", "audio/wav"}
+        if not any(ct in content_type for ct in allowed_types):
+            print(f"警告: 未知的音频内容类型 {content_type}，但继续处理")
 
         # 创建保存目录
         base_dir = Path("test_input/DUB") / project_name / "emotion_reference_audios" / chapter_id
         base_dir.mkdir(parents=True, exist_ok=True)
 
-        # 生成文件名
-        filename = f"{segment_id}-{speaker}.wav"
+        # 根据实际内容类型确定文件扩展名（现在统一转换为 WAV）
+        if "webm" in content_type:
+            original_ext = ".webm"
+        elif "mp4" in content_type:
+            original_ext = ".m4a"
+        elif "ogg" in content_type:
+            original_ext = ".ogg"
+        else:
+            original_ext = ".webm"  # 默认使用 webm
+
+        # 总是保存为 WAV 格式
+        file_ext = ".wav"
+        filename = f"{segment_id}-{speaker}{file_ext}"
         file_path = base_dir / filename
 
         # 保存音频文件
         audio_data = audio_file.read()
 
-        # 如果是WebM格式，需要特殊处理
-        if file_ext == ".webm":
-            # 直接保存WebM文件，后续处理
-            webm_path = file_path.with_suffix(".webm")
-            webm_path.write_bytes(audio_data)
-            # TODO: 这里可以添加WebM到WAV的转换
-            # 暂时直接返回成功
-            return jsonify({
-                "success": True,
-                "path": str(webm_path),
-                "duration": 0.0  # 暂时无法获取时长
-            })
+        # 如果不是 WAV 格式，转换为 WAV
+        if original_ext != ".wav":
+            # 创建临时文件保存原始格式
+            with tempfile.NamedTemporaryFile(suffix=original_ext, delete=False) as temp_input:
+                temp_input.write(audio_data)
+                temp_input_path = temp_input.name
+
+            # 使用 ffmpeg 转换为 WAV
+            try:
+                cmd = [
+                    "ffmpeg", "-y", "-i", temp_input_path,
+                    "-acodec", "pcm_s16le",  # 16-bit PCM
+                    "-ar", "22050",  # 采样率 22050Hz
+                    "-ac", "1",  # 单声道
+                    str(file_path)
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                print(f"音频转换成功: {file_path}")
+            except subprocess.CalledProcessError as e:
+                print(f"音频转换失败: {e}")
+                print(f"stderr: {e.stderr}")
+                # 如果转换失败，尝试直接保存
+                file_path.write_bytes(audio_data)
+            finally:
+                # 清理临时文件
+                Path(temp_input_path).unlink(missing_ok=True)
         else:
-            # 保存WAV文件
+            # 直接保存 WAV 文件
             file_path.write_bytes(audio_data)
 
-            # 尝试获取音频时长
-            try:
-                import librosa
-                duration = librosa.get_duration(path=str(file_path))
-            except:
-                duration = 0.0
+        # 尝试获取音频时长
+        duration = 0.0
+        try:
+            import librosa
+            duration = librosa.get_duration(path=str(file_path))
+        except Exception as e:
+            print(f"获取音频时长失败: {e}")
 
-            return jsonify({
-                "success": True,
-                "path": str(file_path),
-                "duration": round(duration, 3)
-            })
+        return jsonify({
+            "success": True,
+            "path": str(file_path),
+            "duration": round(duration, 3),
+            "content_type": "audio/wav",
+            "file_ext": ".wav"
+        })
 
     except Exception as e:
         logging.error(f"Audio upload error: {str(e)}")
