@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>情感录制 - 简化版</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <h1>情感录制测试</h1>
+  <p id="status">状态：页面加载中...</p>
+
+  <button id="testBtn">测试按钮</button>
+
+  <script>
+    console.log('简化版页面JS开始执行');
+
+    document.getElementById('status').textContent = 'JS已加载';
+
+    document.getElementById('testBtn').addEventListener('click', function() {
+      alert('按钮点击正常！');
+    });
+
+    // 测试API调用
+    fetch('/api/defaults')
+      .then(res => res.json())
+      .then(data => {
+        console.log('API调用成功:', data);
+        document.getElementById('status').textContent = 'API连接正常';
+      })
+      .catch(err => {
+        console.error('API调用失败:', err);
+        document.getElementById('status').textContent = 'API连接失败';
+      });
+  </script>
+</body>
+</html>

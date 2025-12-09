@@ -10,8 +10,6 @@ const clearCacheBtn = document.getElementById("clearCacheBtn");
 const chaptersPanel = document.getElementById("chaptersPanel");
 const chaptersContainer = document.getElementById("chaptersContainer");
 const chapterIndicator = document.getElementById("chapterIndicator");
-const chapterNav = document.getElementById("chapterNav");
-const chapterNavList = document.getElementById("chapterNavList");
 
 const emotionRecordingPanel = document.getElementById("emotionRecordingPanel");
 const prevSegmentBtn = document.getElementById("prevSegmentBtn");
@@ -46,7 +44,6 @@ const browserCancel = document.getElementById("browserCancel");
 
 let chaptersData = [];
 let allSegments = [];
-let activeChapterId = null;
 let currentSegmentIndex = 0;
 let workspaceRoot = window.__workspaceRoot || "";
 
@@ -195,7 +192,6 @@ async function loadChapters() {
     });
 
     chaptersData = res.chapters || [];
-    activeChapterId = chaptersData.length ? chaptersData[0].chapter_id : null;
 
     allSegments = [];
     for (const chapter of chaptersData) {
@@ -208,16 +204,13 @@ async function loadChapters() {
       }
     }
 
-    renderChapterNav();
     renderActiveChapter();
 
     chaptersPanel.style.display = "block";
     emotionRecordingPanel.style.display = "block";
-    chapterNav.style.display = "block";
 
   } catch (err) {
     chaptersContainer.textContent = `加载失败: ${err.message}`;
-    chapterNavList.innerHTML = "";
   }
 }
 
@@ -230,27 +223,6 @@ function basePayload() {
   };
 }
 
-function renderChapterNav() {
-  chapterNavList.innerHTML = "";
-  if (!chaptersData.length) {
-    chapterIndicator.textContent = "";
-    return;
-  }
-  chaptersData.forEach((chapter) => {
-    const navBtn = document.createElement("button");
-    navBtn.textContent = chapter.chapter_id;
-    if (chapter.chapter_id === activeChapterId) {
-      navBtn.classList.add("active");
-    }
-    navBtn.addEventListener("click", () => {
-      activeChapterId = chapter.chapter_id;
-      renderChapterNav();
-      renderActiveChapter();
-    });
-    chapterNavList.appendChild(navBtn);
-  });
-}
-
 function renderActiveChapter() {
   if (!chaptersData.length) {
     chaptersContainer.innerHTML = "";
@@ -258,47 +230,29 @@ function renderActiveChapter() {
     return;
   }
 
-  const activeChapter = chaptersData.find((c) => c.chapter_id === activeChapterId);
-  if (!activeChapter) {
-    chaptersContainer.innerHTML = "";
-    chapterIndicator.textContent = "";
-    return;
-  }
-
-  chapterIndicator.textContent = `当前章节: ${activeChapter.chapter_title}`;
+  chapterIndicator.textContent = `总片段数: ${allSegments.length}`;
   chaptersContainer.innerHTML = "";
 
-  const chapterDiv = document.createElement("div");
-  chapterDiv.className = "chapter";
+  // 创建所有片段的列表
+  const allSegmentsDiv = document.createElement("div");
+  allSegmentsDiv.className = "all-segments";
 
-  const header = document.createElement("div");
-  header.className = "chapter-header";
-  header.innerHTML = `
-    <h3>${activeChapter.chapter_title}</h3>
-    <span class="chapter-meta">${activeChapter.segments.length} 个片段</span>
-  `;
-
-  const segmentsDiv = document.createElement("div");
-  segmentsDiv.className = "chapter-segments";
-
-  for (const segment of activeChapter.segments) {
+  for (const segment of allSegments) {
     const hasEmotionAudio = segment.emotion_reference_audio && segment.emotion_reference_audio.path;
     const segmentDiv = document.createElement("div");
     segmentDiv.className = `segment-item ${hasEmotionAudio ? "recorded" : "unrecorded"}`;
     segmentDiv.innerHTML = `
       <div class="segment-info">
-        <h4>${segment.segment_id} · ${segment.speaker}</h4>
+        <h4>${segment.segment_id} · ${segment.chapter_title} · ${segment.speaker}</h4>
         <p class="segment-text">${segment.text}</p>
         <p class="segment-emotion">${hasEmotionAudio ? "✅ 已录制" : "🎤 未录制"} · ${segment.emotion || "无"}</p>
       </div>
     `;
     segmentDiv.onclick = () => selectSegment(segment);
-    segmentsDiv.appendChild(segmentDiv);
+    allSegmentsDiv.appendChild(segmentDiv);
   }
 
-  chapterDiv.appendChild(header);
-  chapterDiv.appendChild(segmentsDiv);
-  chaptersContainer.appendChild(chapterDiv);
+  chaptersContainer.appendChild(allSegmentsDiv);
 
   updateRecordingStats();
   if (allSegments.length > 0) {
