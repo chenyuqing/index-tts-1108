@@ -7,9 +7,16 @@ const languageSelect = document.getElementById("language");
 const loadChaptersBtn = document.getElementById("loadChaptersBtn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
 
-const recordingPanel = document.getElementById("recordingPanel");
-const unrecordedCount = document.getElementById("unrecordedCount");
-const recordedCount = document.getElementById("recordedCount");
+const chaptersPanel = document.getElementById("chaptersPanel");
+const chaptersContainer = document.getElementById("chaptersContainer");
+const chapterIndicator = document.getElementById("chapterIndicator");
+const chapterNav = document.getElementById("chapterNav");
+const chapterNavList = document.getElementById("chapterNavList");
+
+const emotionRecordingPanel = document.getElementById("emotionRecordingPanel");
+const prevSegmentBtn = document.getElementById("prevSegmentBtn");
+const nextSegmentBtn = document.getElementById("nextSegmentBtn");
+const segmentPosition = document.getElementById("segmentPosition");
 
 const currentSegmentTitle = document.getElementById("currentSegmentTitle");
 const currentSegmentText = document.getElementById("currentSegmentText");
@@ -24,29 +31,9 @@ const uploadAudioBtn = document.getElementById("uploadAudioBtn");
 const reRecordBtn = document.getElementById("reRecordBtn");
 const audioPlayback = document.getElementById("audioPlayback");
 
-const chaptersPanel = document.getElementById("chaptersPanel");
-const chaptersContainer = document.getElementById("chaptersContainer");
-const chapterIndicator = document.getElementById("chapterIndicator");
-const chapterNav = document.getElementById("chapterNav");
-const chapterNavList = document.getElementById("chapterNavList");
-
-const prevSegmentBtn = document.getElementById("prevSegmentBtn");
-const nextSegmentBtn = document.getElementById("nextSegmentBtn");
-const segmentPosition = document.getElementById("segmentPosition");
-
-const batchRecordingPanel = document.getElementById("batchRecordingPanel");
-const batchProgressBar = document.getElementById("batchProgressBar");
-const batchCurrent = document.getElementById("batchCurrent");
-const batchTotal = document.getElementById("batchTotal");
-const batchSegmentTitle = document.getElementById("batchSegmentTitle");
-const batchSegmentText = document.getElementById("batchSegmentText");
-const batchSegmentEmotion = document.getElementById("batchSegmentEmotion");
-const batchStartBtn = document.getElementById("batchStartBtn");
-const batchNextBtn = document.getElementById("batchNextBtn");
-const batchSkipBtn = document.getElementById("batchSkipBtn");
-const exitBatchModeBtn = document.getElementById("exitBatchModeBtn");
-
-const exportPanel = document.getElementById("exportPanel");
+const unrecordedCount = document.getElementById("unrecordedCount");
+const recordedCount = document.getElementById("recordedCount");
+const batchRecordBtn = document.getElementById("batchRecordBtn");
 const exportProgressBtn = document.getElementById("exportProgressBtn");
 
 const modal = document.getElementById("browserModal");
@@ -60,7 +47,7 @@ const browserCancel = document.getElementById("browserCancel");
 
 let chaptersData = [];
 let allSegments = [];
-let currentChapterIndex = 0;
+let activeChapterId = null;
 let currentSegmentIndex = 0;
 let workspaceRoot = window.__workspaceRoot || "";
 
@@ -91,17 +78,13 @@ async function fetchJSON(url, opts = {}) {
 }
 
 async function loadDefaults() {
-  try {
-    const data = await fetchJSON("/api/defaults");
-    scriptInput.value = data.script || "";
-    configInput.value = data.config || "";
-    outRootInput.value = data.out_root || "";
-    modelDirInput.value = data.model_dir || "";
-    languageSelect.value = data.language || "auto";
-    workspaceRoot = data.workspace_root || workspaceRoot;
-  } catch (err) {
-    console.error("加载默认配置失败:", err);
-  }
+  const data = await fetchJSON("/api/defaults");
+  scriptInput.value = data.script || "";
+  configInput.value = data.config || "";
+  outRootInput.value = data.out_root || "";
+  modelDirInput.value = data.model_dir || "";
+  languageSelect.value = data.language || "auto";
+  workspaceRoot = data.workspace_root || workspaceRoot;
 }
 
 function openBrowser(targetKey) {
@@ -120,118 +103,101 @@ function openBrowser(targetKey) {
 }
 
 async function loadDirectory(path) {
+  const body = {
+    path,
+    include_dirs: true,
+    include_files: browserState.target.type === "file",
+    extensions: browserState.target.extensions || [],
+  };
   try {
-    const body = {
-      path,
-      include_dirs: true,
-      include_files: browserState.target.type === "file",
-      extensions: browserState.target.extensions || [],
-    };
-    const data = await fetchJSON("/api/browse", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-
-    browserPath.textContent = data.path;
-    browserList.innerHTML = "";
-    browserList.className = "";
-    browserList.classList.add("browser-list");
-
-    if (data.parent) {
-      const parentItem = document.createElement("li");
-      parentItem.className = "browser-item directory";
-      parentItem.textContent = "..";
-      parentItem.onclick = () => loadDirectory(data.parent);
-      browserList.appendChild(parentItem);
-    }
-
-    for (const dir of data.directories || []) {
-      const item = document.createElement("li");
-      item.className = "browser-item directory";
-      item.textContent = dir;
-      item.onclick = () => selectBrowserItem(item, dir, true);
-      browserList.appendChild(item);
-    }
-
-    for (const file of data.files || []) {
-      const item = document.createElement("li");
-      item.className = "browser-item file";
-      item.textContent = file;
-      item.onclick = () => selectBrowserItem(item, file, false);
-      browserList.appendChild(item);
-    }
+    const res = await fetchJSON("/api/listdir", { method: "POST", body: JSON.stringify(body) });
+    browserState.currentPath = res.current_path;
+    browserPath.textContent = res.current_path;
+    renderBrowserList(res.entries);
   } catch (err) {
-    console.error("加载目录失败:", err);
-    alert("加载目录失败: " + err.message);
+    browserPath.textContent = err.message;
+    browserList.innerHTML = "";
   }
 }
 
-function selectBrowserItem(item, name, isDir) {
-  document.querySelectorAll(".browser-item").forEach((el) => {
-    el.classList.remove("selected");
+function renderBrowserList(entries) {
+  browserList.innerHTML = "";
+  entries.forEach((entry) => {
+    const li = document.createElement("li");
+    li.dataset.path = entry.path;
+    li.dataset.isDir = entry.is_dir;
+    li.textContent = entry.name + (entry.is_dir ? " /" : "");
+    browserList.appendChild(li);
   });
-  item.classList.add("selected");
-  browserState.selectedPath = name;
-  browserState.selectedIsDir = isDir;
-  browserSelect.disabled = false;
 }
+
+browserList.addEventListener("click", (event) => {
+  const li = event.target.closest("li");
+  if (!li) return;
+  const isDir = li.dataset.isDir === "true";
+  if (isDir && browserState.target.type === "file") {
+    loadDirectory(li.dataset.path);
+    return;
+  }
+  browserState.selectedPath = li.dataset.path;
+  browserState.selectedIsDir = isDir;
+  Array.from(browserList.children).forEach((node) => node.classList.remove("active"));
+  li.classList.add("active");
+  const expectDir = browserState.target.type === "dir";
+  browserSelect.disabled = expectDir ? !isDir : isDir;
+});
+
+browserList.addEventListener("dblclick", (event) => {
+  const li = event.target.closest("li");
+  if (!li) return;
+  if (li.dataset.isDir === "true") {
+    loadDirectory(li.dataset.path);
+  }
+});
+
+browserSelect.addEventListener("click", () => {
+  if (!browserState.selectedPath) return;
+  if (browserState.target.type === "dir" && !browserState.selectedIsDir) return;
+  if (browserState.target.type === "file" && browserState.selectedIsDir) return;
+  browserState.target.input.value = browserState.selectedPath;
+  closeBrowser();
+});
+
+browserCancel.addEventListener("click", closeBrowser);
+browserClose.addEventListener("click", closeBrowser);
+browserUp.addEventListener("click", () => {
+  if (!browserState.currentPath) return;
+  const parent = parentPath(browserState.currentPath);
+  loadDirectory(parent);
+});
+
+document.querySelectorAll("button[data-browse]").forEach((btn) => {
+  btn.addEventListener("click", () => openBrowser(btn.dataset.browse));
+});
 
 function closeBrowser() {
   modal.classList.add("hidden");
 }
 
-async function selectBrowserPath() {
-  if (!browserState.selectedPath) return;
-
-  const fullPath = browserState.currentPath
-    ? browserState.currentPath.replace(/\/$/, "") + "/" + browserState.selectedPath
-    : browserState.selectedPath;
-
-  if (browserState.selectedIsDir) {
-    browserState.currentPath = fullPath;
-    loadDirectory(browserState.currentPath);
-  } else {
-    browserState.target.input.value = fullPath;
-    closeBrowser();
-  }
-}
-
-async function browseUp() {
-  if (!browserState.currentPath) return;
-  const parent = browserState.currentPath.substring(0, browserState.currentPath.lastIndexOf("/"));
-  browserState.currentPath = parent || "/";
-  loadDirectory(browserState.currentPath);
+function parentPath(path) {
+  if (!path) return "/";
+  const parts = path.split("/");
+  parts.pop();
+  return parts.join("/") || "/";
 }
 
 async function loadChapters() {
+  chaptersContainer.innerHTML = "加载中...";
   try {
-    const scriptPath = scriptInput.value;
-    const configPath = configInput.value;
-    const outRoot = outRootInput.value;
-
-    if (!scriptPath || !configPath || !outRoot) {
-      alert("请先选择脚本、配置文件和输出目录");
-      return;
-    }
-
-    const body = {
-      script: scriptPath,
-      config: configPath,
-      out_root: outRoot,
-      language: languageSelect.value,
-    };
-
-    const data = await fetchJSON("/api/review-data", {
+    const payload = basePayload();
+    const res = await fetchJSON("/api/review-data", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
 
-    if (!data.chapters || !Array.isArray(data.chapters)) {
-      alert("无法加载章节数据，请检查脚本文件");
-      return;
-    }
+    chaptersData = res.chapters || [];
+    activeChapterId = chaptersData.length ? chaptersData[0].chapter_id : null;
 
-    chaptersData = data.chapters;
     allSegments = [];
     for (const chapter of chaptersData) {
       for (const segment of chapter.segments) {
@@ -243,103 +209,102 @@ async function loadChapters() {
       }
     }
 
-    renderChapters();
     renderChapterNav();
-    selectChapter(0);
+    renderActiveChapter();
 
     chaptersPanel.style.display = "block";
-    recordingPanel.style.display = "block";
+    emotionRecordingPanel.style.display = "block";
     chapterNav.style.display = "block";
-    exportPanel.style.display = "block";
 
-    alert("章节加载成功！");
   } catch (err) {
-    console.error("加载章节失败:", err);
-    alert("加载章节失败: " + err.message);
+    chaptersContainer.textContent = `加载失败: ${err.message}`;
+    chapterNavList.innerHTML = "";
   }
 }
 
-function renderChapters() {
-  chaptersContainer.innerHTML = "";
-
-  for (let i = 0; i < chaptersData.length; i++) {
-    const chapter = chaptersData[i];
-    const chapterDiv = document.createElement("div");
-    chapterDiv.className = "chapter";
-    chapterDiv.id = `chapter-${chapter.chapter_id}`;
-
-    const header = document.createElement("div");
-    header.className = "chapter-header";
-    header.innerHTML = `
-      <h3>${chapter.chapter_title}</h3>
-      <span class="chapter-meta">${chapter.segments.length} 个片段</span>
-    `;
-
-    const segmentsDiv = document.createElement("div");
-    segmentsDiv.className = "chapter-segments";
-
-    for (const segment of chapter.segments) {
-      const hasEmotionAudio = segment.emotion_reference_audio && segment.emotion_reference_audio.path;
-      const segmentDiv = document.createElement("div");
-      segmentDiv.className = `segment-item ${hasEmotionAudio ? "recorded" : "unrecorded"}`;
-      segmentDiv.innerHTML = `
-        <div class="segment-info">
-          <h4>${segment.segment_id} · ${segment.speaker}</h4>
-          <p class="segment-text">${segment.text}</p>
-          <p class="segment-emotion">${hasEmotionAudio ? "✅ 已录制" : "🎤 未录制"} · ${segment.emotion || "无"}</p>
-        </div>
-      `;
-
-      segmentsDiv.appendChild(segmentDiv);
-    }
-
-    chapterDiv.appendChild(header);
-    chapterDiv.appendChild(segmentsDiv);
-    chaptersContainer.appendChild(chapterDiv);
-  }
-
-  updateRecordingStats();
+function basePayload() {
+  return {
+    script_path: scriptInput.value,
+    config_path: configInput.value,
+    out_root: outRootInput.value,
+    language: languageSelect.value,
+  };
 }
 
 function renderChapterNav() {
   chapterNavList.innerHTML = "";
-
-  for (let i = 0; i < chaptersData.length; i++) {
-    const chapter = chaptersData[i];
-    const navItem = document.createElement("div");
-    navItem.className = "chapter-nav-item";
-    navItem.innerHTML = `
-      <div class="chapter-nav-title">${chapter.chapter_title}</div>
-      <div class="chapter-nav-meta">${chapter.segments.length} 片段</div>
-    `;
-    navItem.onclick = () => selectChapter(i);
-    chapterNavList.appendChild(navItem);
+  if (!chaptersData.length) {
+    chapterIndicator.textContent = "";
+    return;
   }
+  chaptersData.forEach((chapter) => {
+    const navBtn = document.createElement("button");
+    navBtn.textContent = chapter.chapter_id;
+    if (chapter.chapter_id === activeChapterId) {
+      navBtn.classList.add("active");
+    }
+    navBtn.addEventListener("click", () => {
+      activeChapterId = chapter.chapter_id;
+      renderChapterNav();
+      renderActiveChapter();
+    });
+    chapterNavList.appendChild(navBtn);
+  });
 }
 
-function selectChapter(index) {
-  currentChapterIndex = index;
-  const chapter = chaptersData[index];
-
-  document.querySelectorAll(".chapter").forEach((el) => {
-    el.classList.remove("active");
-  });
-  document.querySelectorAll(".chapter-nav-item").forEach((el) => {
-    el.classList.remove("active");
-  });
-
-  const chapterElement = document.getElementById(`chapter-${chapter.chapter_id}`);
-  if (chapterElement) {
-    chapterElement.classList.add("active");
+function renderActiveChapter() {
+  if (!chaptersData.length) {
+    chaptersContainer.innerHTML = "";
+    chapterIndicator.textContent = "";
+    return;
   }
 
-  const navItems = chapterNavList.querySelectorAll(".chapter-nav-item");
-  if (navItems[index]) {
-    navItems[index].classList.add("active");
+  const activeChapter = chaptersData.find((c) => c.chapter_id === activeChapterId);
+  if (!activeChapter) {
+    chaptersContainer.innerHTML = "";
+    chapterIndicator.textContent = "";
+    return;
   }
 
-  chapterIndicator.textContent = `当前章节: ${chapter.chapter_title}`;
-  chapterElement?.scrollIntoView({ behavior: "smooth", block: "start" });
+  chapterIndicator.textContent = `当前章节: ${activeChapter.chapter_title}`;
+  chaptersContainer.innerHTML = "";
+
+  const chapterDiv = document.createElement("div");
+  chapterDiv.className = "chapter";
+
+  const header = document.createElement("div");
+  header.className = "chapter-header";
+  header.innerHTML = `
+    <h3>${activeChapter.chapter_title}</h3>
+    <span class="chapter-meta">${activeChapter.segments.length} 个片段</span>
+  `;
+
+  const segmentsDiv = document.createElement("div");
+  segmentsDiv.className = "chapter-segments";
+
+  for (const segment of activeChapter.segments) {
+    const hasEmotionAudio = segment.emotion_reference_audio && segment.emotion_reference_audio.path;
+    const segmentDiv = document.createElement("div");
+    segmentDiv.className = `segment-item ${hasEmotionAudio ? "recorded" : "unrecorded"}`;
+    segmentDiv.innerHTML = `
+      <div class="segment-info">
+        <h4>${segment.segment_id} · ${segment.speaker}</h4>
+        <p class="segment-text">${segment.text}</p>
+        <p class="segment-emotion">${hasEmotionAudio ? "✅ 已录制" : "🎤 未录制"} · ${segment.emotion || "无"}</p>
+      </div>
+    `;
+    segmentDiv.onclick = () => selectSegment(segment);
+    segmentsDiv.appendChild(segmentDiv);
+  }
+
+  chapterDiv.appendChild(header);
+  chapterDiv.appendChild(segmentsDiv);
+  chaptersContainer.appendChild(chapterDiv);
+
+  updateRecordingStats();
+  if (allSegments.length > 0) {
+    navigateToSegment(0);
+  }
 }
 
 function updateRecordingStats() {
@@ -359,6 +324,13 @@ function updateRecordingStats() {
   recordedCount.textContent = recorded;
 }
 
+function selectSegment(segment) {
+  const index = allSegments.findIndex((s) => s.segment_id === segment.segment_id);
+  if (index !== -1) {
+    navigateToSegment(index);
+  }
+}
+
 function navigateToSegment(index) {
   if (index < 0 || index >= allSegments.length) return;
 
@@ -374,57 +346,41 @@ function navigateToSegment(index) {
 
   prevSegmentBtn.disabled = index === 0;
   nextSegmentBtn.disabled = index === allSegments.length - 1;
-
-  recordingPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function attachEventListeners() {
-  document.querySelectorAll("[data-browse]").forEach((btn) => {
-    btn.onclick = () => openBrowser(btn.getAttribute("data-browse"));
-  });
+clearCacheBtn.addEventListener("click", async () => {
+  try {
+    await fetchJSON("/api/cache/clear", { method: "POST" });
+    alert("模型缓存已清理");
+  } catch (err) {
+    alert("清理缓存失败: " + err.message);
+  }
+});
 
-  loadChaptersBtn.onclick = loadChapters;
-  clearCacheBtn.onclick = async () => {
-    try {
-      await fetchJSON("/api/cache/clear", { method: "POST" });
-      alert("模型缓存已清理");
-    } catch (err) {
-      console.error("清理缓存失败:", err);
-      alert("清理缓存失败: " + err.message);
-    }
-  };
+loadChaptersBtn.addEventListener("click", loadChapters);
 
-  browserClose.onclick = closeBrowser;
-  browserCancel.onclick = closeBrowser;
-  browserSelect.onclick = selectBrowserPath;
-  browserUp.onclick = browseUp;
+prevSegmentBtn.addEventListener("click", () => {
+  navigateToSegment(currentSegmentIndex - 1);
+});
 
-  prevSegmentBtn.onclick = () => navigateToSegment(currentSegmentIndex - 1);
-  nextSegmentBtn.onclick = () => navigateToSegment(currentSegmentIndex + 1);
+nextSegmentBtn.addEventListener("click", () => {
+  navigateToSegment(currentSegmentIndex + 1);
+});
 
-  startRecordingBtn.onclick = () => {
-    if (currentSegmentIndex < 0 || currentSegmentIndex >= allSegments.length) {
-      alert("请先选择片段");
-      return;
-    }
-    startRecording();
-  };
+startRecordingBtn.addEventListener("click", startRecording);
+stopRecordingBtn.addEventListener("click", stopRecording);
+uploadAudioBtn.addEventListener("click", uploadAudio);
+reRecordBtn.addEventListener("click", () => {
+  audioPlayback.style.display = "none";
+  startRecordingBtn.style.display = "inline-block";
+  stopRecordingBtn.style.display = "none";
+});
 
-  stopRecordingBtn.onclick = stopRecording;
-  uploadAudioBtn.onclick = uploadAudio;
-  reRecordBtn.onclick = () => {
-    audioPlayback.style.display = "none";
-    startRecordingBtn.style.display = "inline-block";
-    stopRecordingBtn.style.display = "none";
-  };
+batchRecordBtn.addEventListener("click", () => {
+  alert("批量录制功能开发中...");
+});
 
-  batchStartBtn.onclick = startBatchRecording;
-  exitBatchModeBtn.onclick = exitBatchMode;
-  batchNextBtn.onclick = nextBatchSegment;
-  batchSkipBtn.onclick = nextBatchSegment;
-
-  exportProgressBtn.onclick = exportProgressReport;
-}
+exportProgressBtn.addEventListener("click", exportProgressReport);
 
 let mediaRecorder = null;
 let audioChunks = [];
@@ -457,7 +413,7 @@ async function startRecording() {
 
     startRecordingBtn.style.display = "none";
     stopRecordingBtn.style.display = "inline-block";
-    recordingIndicator.classList.remove("hidden");
+    recordingIndicator.style.display = "block";
 
     recordingTimer = setInterval(updateRecordingTime, 100);
   } catch (err) {
@@ -490,7 +446,7 @@ function stopRecording() {
   }
 
   stopRecordingBtn.style.display = "none";
-  recordingIndicator.classList.add("hidden");
+  recordingIndicator.style.display = "none";
 }
 
 async function uploadAudio() {
@@ -519,62 +475,11 @@ async function uploadAudio() {
 
     alert("情感参考音频上传成功！");
     audioPlayback.style.display = "none";
-    renderChapters();
+    renderActiveChapter();
   } catch (err) {
     console.error("上传失败:", err);
     alert("上传失败: " + err.message);
   }
-}
-
-let batchModeSegments = [];
-let batchCurrentIndex = 0;
-
-function enterBatchMode() {
-  batchRecordingPanel.style.display = "block";
-  batchModeSegments = [...allSegments];
-  batchCurrentIndex = 0;
-  updateBatchProgress();
-}
-
-function exitBatchMode() {
-  batchRecordingPanel.style.display = "none";
-  batchModeSegments = [];
-  batchCurrentIndex = 0;
-}
-
-function updateBatchProgress() {
-  batchCurrent.textContent = batchCurrentIndex + 1;
-  batchTotal.textContent = batchModeSegments.length;
-
-  const progress = ((batchCurrentIndex + 1) / batchModeSegments.length) * 100;
-  batchProgressBar.style.width = progress + "%";
-
-  if (batchCurrentIndex < batchModeSegments.length) {
-    const segment = batchModeSegments[batchCurrentIndex];
-    batchSegmentTitle.textContent = `${segment.segment_id} · ${segment.speaker}`;
-    batchSegmentText.textContent = segment.text;
-    batchSegmentEmotion.textContent = segment.emotion || "无";
-  }
-}
-
-function startBatchRecording() {
-  batchStartBtn.style.display = "none";
-  batchNextBtn.style.display = "inline-block";
-  batchSkipBtn.style.display = "inline-block";
-  navigateToSegment(batchCurrentIndex);
-  startRecording();
-}
-
-function nextBatchSegment() {
-  stopRecording();
-  batchCurrentIndex++;
-  if (batchCurrentIndex >= batchModeSegments.length) {
-    alert("批量录制完成！");
-    exitBatchMode();
-    renderChapters();
-    return;
-  }
-  updateBatchProgress();
 }
 
 function exportProgressReport() {
@@ -601,6 +506,5 @@ function exportProgressReport() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  attachEventListeners();
   await loadDefaults();
 });
