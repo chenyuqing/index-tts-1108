@@ -266,6 +266,11 @@ def emotion_recording() -> Any:
     return send_from_directory(app.static_folder, "emotion-recording.html")
 
 
+@app.route("/emotion-recording-debug")
+def emotion_recording_debug() -> Any:
+    return send_from_directory(app.static_folder, "emotion-recording-debug.html")
+
+
 @app.route("/audiobook")
 def audiobook() -> Any:
     return send_from_directory(app.static_folder, "audiobook.html")
