@@ -32,7 +32,7 @@ EPUB_DEFAULT_SPEAKER = "default"
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent
-DEFAULT_SCRIPT = str(WORKSPACE_ROOT / "test_input/scripts/what is understanding-hinton-CN.md")
+DEFAULT_SCRIPT = str(WORKSPACE_ROOT / "test_input/scripts/cursor-composor-CN.md")
 DEFAULT_CONFIG = str(WORKSPACE_ROOT / "test_input/speakers.yaml")
 DEFAULT_OUT_ROOT = str(WORKSPACE_ROOT / "test_input/DUB")
 DEFAULT_MODEL_DIR = str(WORKSPACE_ROOT / "checkpoints")
