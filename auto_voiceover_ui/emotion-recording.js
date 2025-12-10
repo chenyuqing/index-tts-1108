@@ -12,6 +12,7 @@ const prevChapterBtn = document.getElementById("prevChapterBtn");
 const prevSegmentBtn = document.getElementById("prevSegmentBtn");
 const nextSegmentBtn = document.getElementById("nextSegmentBtn");
 const nextChapterBtn = document.getElementById("nextChapterBtn");
+const lastChapterBtn = document.getElementById("lastChapterBtn");
 const segmentPosition = document.getElementById("segmentPosition");
 
 const currentSegmentTitle = document.getElementById("currentSegmentTitle");
@@ -43,6 +44,7 @@ const browserCancel = document.getElementById("browserCancel");
 
 let chaptersData = [];
 let allSegments = [];
+let currentSegment = null; // 当前显示的segment对象，包含chapter_id
 let currentChapterIndex = 0;
 let currentSegmentIndex = 0;
 let workspaceRoot = window.__workspaceRoot || "";
@@ -74,13 +76,41 @@ async function fetchJSON(url, opts = {}) {
 }
 
 async function loadDefaults() {
-  const data = await fetchJSON("/api/defaults");
-  scriptInput.value = data.script || "";
-  configInput.value = data.config || "";
-  outRootInput.value = data.out_root || "";
-  modelDirInput.value = data.model_dir || "";
-  languageSelect.value = data.language || "auto";
-  workspaceRoot = data.workspace_root || workspaceRoot;
+  try {
+    console.log("情感录制页面：加载默认值...");
+    const data = await fetchJSON("/api/defaults");
+    console.log("情感录制页面：获取到的默认值:", data);
+
+    // 使用默认值
+    const defaults = data || {};
+    const scriptValue = defaults.script || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/test_input/scripts/cursor-composor-EN.md";
+    const configValue = defaults.config || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/test_input/speakers.yaml";
+    const outRootValue = defaults.out_root || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/test_input/DUB";
+    const modelDirValue = defaults.model_dir || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/checkpoints";
+    const languageValue = defaults.language || "auto";
+
+    scriptInput.value = scriptValue;
+    configInput.value = configValue;
+    outRootInput.value = outRootValue;
+    modelDirInput.value = modelDirValue;
+    languageSelect.value = languageValue;
+
+    if (defaults.workspace_root) {
+      workspaceRoot = defaults.workspace_root;
+    } else if (!workspaceRoot) {
+      workspaceRoot = "/";
+    }
+
+    console.log("情感录制页面：表单字段已更新:", {
+      script: scriptInput.value,
+      config: configInput.value,
+      outRoot: outRootInput.value,
+      modelDir: modelDirInput.value,
+      language: languageSelect.value
+    });
+  } catch (err) {
+    console.error("情感录制页面：加载默认值失败:", err);
+  }
 }
 
 function openBrowser(targetKey) {
@@ -183,13 +213,17 @@ function parentPath(path) {
 }
 
 async function loadChapters() {
-  chaptersContainer.innerHTML = "加载中...";
+  console.log("开始加载章节...");
   try {
     const payload = basePayload();
+    console.log("请求参数:", payload);
+
     const res = await fetchJSON("/api/review-data", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+
+    console.log("API响应:", res);
 
     chaptersData = res.chapters || [];
     currentChapterIndex = 0;
@@ -199,11 +233,13 @@ async function loadChapters() {
       for (const segment of chapter.segments) {
         allSegments.push({
           ...segment,
-          chapter_id: chapter.chapter_id,
+          chapter_id: segment.chapter_id,  // 从API返回的数据中获取
           chapter_title: chapter.chapter_title,
         });
       }
     }
+
+    console.log(`加载完成: ${chaptersData.length} 个章节, ${allSegments.length} 个片段`);
 
     renderActiveChapter();
 
@@ -231,6 +267,8 @@ function renderActiveChapter() {
 
   // 导航到当前章节的第一个片段
   navigateToChapterSegment(0);
+  // 更新统计显示
+  updateRecordingStats();
 }
 
 function updateRecordingStats() {
@@ -257,18 +295,42 @@ function navigateToChapterSegment(index) {
   currentSegmentIndex = index;
   const segment = activeChapter.segments[index];
 
+  // 保存当前segment对象，包含完整的chapter信息
+  currentSegment = {
+    ...segment,
+    chapter_id: segment.chapter_id,  // 从segment数据中获取
+    chapter_title: activeChapter.chapter_title,
+  };
+
   // 显示章节信息
   chapterInfo.textContent = `${activeChapter.chapter_title} (${currentChapterIndex + 1}/${chaptersData.length})`;
   currentSegmentTitle.textContent = `${segment.segment_id} · ${segment.speaker}`;
   currentSegmentText.textContent = segment.text;
   currentSegmentEmotion.textContent = segment.emotion || "无";
-  startRecordingBtn.disabled = false;
 
-  segmentPosition.textContent = `${index + 1} / ${activeChapter.segments.length}`;
+  segmentPosition.textContent = `${index + 1} / ${activeChapter.segments.length} / ${currentChapterIndex + 1}`;
+
+  // 检查是否有已录制的情感参考音频
+  const hasExistingAudio = segment.emotion_reference_audio && segment.emotion_reference_audio.path;
+  if (hasExistingAudio) {
+    // 有参考音频，显示播放器
+    const audioUrl = `/api/audio?path=${encodeURIComponent(segment.emotion_reference_audio.path)}`;
+    recordedAudio.src = audioUrl;
+    audioPlayback.style.display = "block";
+    startRecordingBtn.style.display = "none";
+    stopRecordingBtn.style.display = "none";
+  } else {
+    // 无参考音频，显示录制按钮
+    startRecordingBtn.disabled = false;
+    startRecordingBtn.style.display = "inline-block";
+    stopRecordingBtn.style.display = "none";
+    audioPlayback.style.display = "none";
+  }
 
   // 更新章节导航按钮状态
   prevChapterBtn.disabled = currentChapterIndex === 0;
   nextChapterBtn.disabled = currentChapterIndex === chaptersData.length - 1;
+  lastChapterBtn.disabled = currentChapterIndex === chaptersData.length - 1;
   // 更新片段导航按钮状态
   prevSegmentBtn.disabled = index === 0;
   nextSegmentBtn.disabled = index === activeChapter.segments.length - 1;
@@ -295,6 +357,13 @@ prevChapterBtn.addEventListener("click", () => {
 nextChapterBtn.addEventListener("click", () => {
   if (currentChapterIndex < chaptersData.length - 1) {
     currentChapterIndex++;
+    renderActiveChapter();
+  }
+});
+
+lastChapterBtn.addEventListener("click", () => {
+  if (chaptersData.length > 0) {
+    currentChapterIndex = chaptersData.length - 1;
     renderActiveChapter();
   }
 });
@@ -402,13 +471,13 @@ function stopRecording() {
 }
 
 async function uploadAudio() {
-  if (currentSegmentIndex < 0 || currentSegmentIndex >= allSegments.length || audioChunks.length === 0) {
+  if (!currentSegment || audioChunks.length === 0) {
     alert("没有可上传的音频");
     return;
   }
 
   try {
-    const segment = allSegments[currentSegmentIndex];
+    const segment = currentSegment;
     const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
     const formData = new FormData();
     formData.append("audio", audioBlob, `${segment.segment_id}-${segment.speaker}.wav`);
@@ -428,7 +497,37 @@ async function uploadAudio() {
 
     alert("情感参考音频上传成功！");
     audioPlayback.style.display = "none";
-    renderActiveChapter();
+    audioChunks = [];  // 清空音频缓存
+
+    // 上传成功后，手动更新当前片段的emotion_reference_audio信息
+    const activeChapter = chaptersData[currentChapterIndex];
+    const currentActiveSegment = activeChapter.segments[currentSegmentIndex];
+
+    // 从响应中获取文件路径
+    const result = await response.json();
+    if (result.path) {
+      currentActiveSegment.emotion_reference_audio = {
+        path: result.path,
+        duration: result.duration,
+        content_type: result.content_type,
+        uploaded_at: new Date().toISOString()
+      };
+
+      // 更新allSegments中对应的数据
+      const globalIndex = allSegments.findIndex(s =>
+        s.segment_id === currentActiveSegment.segment_id &&
+        s.chapter_id === currentActiveSegment.chapter_id
+      );
+      if (globalIndex >= 0) {
+        allSegments[globalIndex].emotion_reference_audio = currentActiveSegment.emotion_reference_audio;
+      }
+
+      // 更新统计显示
+      updateRecordingStats();
+
+      // 刷新当前片段显示（会显示音频播放器）
+      navigateToChapterSegment(currentSegmentIndex);
+    }
   } catch (err) {
     console.error("上传失败:", err);
     alert("上传失败: " + err.message);

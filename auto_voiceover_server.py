@@ -513,15 +513,44 @@ def api_review_data() -> Any:
             filename = f"{entry.get('segment_id')}" + (f"-{entry.get('speaker')}" if entry.get('speaker') else "") + ".wav"
             audio_path = out_root / chapter_id / filename
         audio_exists = audio_path.exists()
-        audio_url = f"/api/audio?path={quote(str(audio_path))}" if audio_exists else None
+        original_audio_url = f"/api/audio?path={quote(str(audio_path))}" if audio_exists else None
+
+        # 检查是否有review音频 (逐句微调)
+        review_filename = f"{entry.get('segment_id')}" + (f"-{entry.get('speaker')}" if entry.get('speaker') else "") + ".wav"
+        review_path = out_root / "review" / chapter_id / review_filename
+        review_exists = review_path.exists()
+        review_audio_url = f"/api/audio?path={quote(str(review_path))}" if review_exists else None
+
+        # 检查是否有情感参考音频
+        emotion_ref_path = Path("test_input/DUB") / manifest_data.get("episode", "") / "emotion_reference_audios" / chapter_id / review_filename
+        emotion_ref_exists = emotion_ref_path.exists()
+        emotion_reference_audio = entry.get("emotion_reference_audio")
+        if not emotion_reference_audio and emotion_ref_exists:
+            # manifest中没有但文件存在，自动补充
+            emotion_reference_audio = {
+                "path": str(emotion_ref_path),
+                "content_type": "audio/wav",
+                "detected_at": datetime.utcnow().isoformat()
+            }
+            # 更新manifest
+            entry["emotion_reference_audio"] = emotion_reference_audio
+            save_manifest(manifest_data, manifest_path)
+
+        # audio_url 保持向后兼容：优先显示 review 音频，否则显示原始音频
+        audio_url = review_audio_url or original_audio_url
+
         chapter["segments"].append(
             {
                 "segment_id": entry.get("segment_id"),
                 "speaker": entry.get("speaker"),
                 "emotion": entry.get("emotion"),
                 "text": entry.get("text"),
-                "audio_url": audio_url,
+                "chapter_id": chapter_id,  # 添加章节ID字段
+                "audio_url": audio_url,              # review音频(如果有) 或 原始音频
+                "original_audio_url": original_audio_url,  # 原始生成的音频
+                "review_audio_url": review_audio_url,      # review音频(逐句微调用)
                 "output_path": output_path,
+                "emotion_reference_audio": entry.get("emotion_reference_audio"),
             }
         )
 
@@ -556,6 +585,7 @@ def api_generate() -> Any:
     model_dir = _resolve_path(data.get("model_dir") or DEFAULT_MODEL_DIR)
     use_fp16 = bool(data.get("use_fp16", False))
     pending_only = bool(data.get("pending_only", False))
+    use_emotion_reference = bool(data.get("use_emotion_reference", False))
 
     manifest_path = _resolve_manifest_path(data.get("manifest_path"), script_path)
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
@@ -629,6 +659,7 @@ def api_generate() -> Any:
                 only_pending=pending_only,
                 control_fn=control_fn,
                 log_cb=log_cb,
+                use_emotion_reference=use_emotion_reference,
             )
     except Exception as exc:
         job_control["status"] = "idle"
@@ -954,6 +985,26 @@ def upload_emotion_audio() -> Any:
             duration = librosa.get_duration(path=str(file_path))
         except Exception as e:
             print(f"获取音频时长失败: {e}")
+
+        # 更新manifest文件，记录情感参考音频路径
+        try:
+            manifest_path = _resolve_manifest_path(None, script_path_obj)
+            manifest_data = load_manifest(manifest_path)
+            if manifest_data:
+                # 查找对应的segment并更新emotion_reference_audio字段
+                for seg in manifest_data.get("segments", []):
+                    if seg.get("segment_id") == segment_id and seg.get("chapter") == chapter_id:
+                        seg["emotion_reference_audio"] = {
+                            "path": str(file_path),
+                            "duration": round(duration, 3),
+                            "content_type": "audio/wav",
+                            "uploaded_at": datetime.utcnow().isoformat()
+                        }
+                        save_manifest(manifest_data, manifest_path)
+                        print(f"已更新manifest文件: {manifest_path}")
+                        break
+        except Exception as e:
+            print(f"更新manifest失败: {e}")
 
         return jsonify({
             "success": True,

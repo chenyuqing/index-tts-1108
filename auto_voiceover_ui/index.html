@@ -72,6 +72,7 @@
           <div class="field checkbox-group">
             <label><input id="useFp16" type="checkbox" checked /> 启用 FP16</label>
             <label><input id="pendingOnly" type="checkbox" checked /> 仅处理未完成</label>
+            <label><input id="useEmotionRef" type="checkbox" /> 优先使用情感参考音频</label>
           </div>
         </div>
         <div class="actions">
@@ -138,7 +139,10 @@
 
   <script>
     window.__workspaceRoot = "";
+    console.log("内联脚本已执行！");
+    console.log("检查scriptInput元素:", document.getElementById("scriptPath"));
+    console.log("检查configInput元素:", document.getElementById("configPath"));
   </script>
-  <script src="/ui/app.js" type="module"></script>
+  <script src="/ui/app.js?v=20251210" type="module"></script>
 </body>
 </html>

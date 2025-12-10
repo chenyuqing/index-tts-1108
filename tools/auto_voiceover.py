@@ -708,38 +708,44 @@ def merge_manifests(old: Dict[str, object], new: Dict[str, object]) -> Dict[str,
 
 
 def refresh_segment_status_by_files(manifest: Dict[str, object]) -> None:
-    """刷新段落状态：检查文件是否存在，如果存在则更新状态和音频时长"""
+    """刷新段落状态：检查文件是否存在，如果存在则更新状态和音频时长，如果不存在则标记为pending"""
     for entry in manifest.get("segments", []):
-        if entry.get("status") == "done":
-            # 即使状态是done，也检查并更新音频时长（如果缺失）
-            output_path = entry.get("output_path")
-            if output_path and Path(output_path).exists():
-                if not entry.get("actual_duration_sec"):
-                    try:
-                        import librosa
-                        actual_duration = librosa.get_duration(path=output_path)
-                        entry["actual_duration_sec"] = round(actual_duration, 3)
-                        entry["timing_accuracy"] = "verified"
-                    except Exception:
-                        pass
-            continue
-        
         output_path = entry.get("output_path")
         if not output_path:
             continue
-        if Path(output_path).exists():
-            entry["status"] = "done"
-            entry["completed_at"] = entry.get("completed_at") or datetime.utcnow().isoformat()
-            entry["error"] = None
-            # 测量实际音频时长
-            try:
-                import librosa
-                actual_duration = librosa.get_duration(path=output_path)
-                entry["actual_duration_sec"] = round(actual_duration, 3)
-                entry["timing_accuracy"] = "verified"
-            except Exception:
-                # 如果测量失败，至少标记为done
-                entry["timing_accuracy"] = "estimated"
+
+        file_exists = Path(output_path).exists()
+
+        if file_exists:
+            # 文件存在，状态应该是done（除非明确是failed）
+            if entry.get("status") != "failed":
+                entry["status"] = "done"
+                entry["completed_at"] = entry.get("completed_at") or datetime.utcnow().isoformat()
+                entry["error"] = None
+
+            # 测量实际音频时长（如果缺失或验证失败）
+            if not entry.get("actual_duration_sec") or entry.get("timing_accuracy") != "verified":
+                try:
+                    import librosa
+                    actual_duration = librosa.get_duration(path=output_path)
+                    entry["actual_duration_sec"] = round(actual_duration, 3)
+                    entry["timing_accuracy"] = "verified"
+                except Exception:
+                    # 如果测量失败标记为estimated
+                    entry["timing_accuracy"] = "estimated"
+                    if not entry.get("actual_duration_sec"):
+                        entry["actual_duration_sec"] = entry.get("duration_sec", 0)
+        else:
+            # 文件不存在，状态应该是pending（除非明确是failed且不想重试）
+            if entry.get("status") == "done":
+                # 之前标记为done但文件不存在，说明文件被删除或生成失败
+                entry["status"] = "pending"
+                entry["error"] = None
+                # 清除时长信息，因为没有文件
+                entry.pop("actual_duration_sec", None)
+                entry.pop("timing_accuracy", None)
+                # 清除完成时间
+                entry.pop("completed_at", None)
 
 
 def prepare_manifest(
@@ -800,9 +806,14 @@ def synthesize_segments(
     only_pending: bool = False,
     control_fn: Optional[Callable[[], Optional[str]]] = None,
     overrides: Optional[Dict[str, Dict[str, Any]]] = None,
+    use_emotion_reference: bool = False,
 ) -> Tuple[Dict[str, object], List[str]]:
     start_time = time.time()
     logs: List[str] = []
+
+    # 确保os模块可用（用于文件检查）
+    import os
+    from pathlib import Path
 
     def emit(message: str) -> None:
         logs.append(message)
@@ -1011,6 +1022,19 @@ def synthesize_segments(
         elif emo_mode == "vector" and emo_vector:
             tts_kwargs["emo_vector"] = emo_vector
 
+        # 如果启用情感参考音频，优先使用
+        if use_emotion_reference and entry.get("emotion_reference_audio"):
+            ref_audio = entry["emotion_reference_audio"]
+            if isinstance(ref_audio, dict) and ref_audio.get("path"):
+                ref_audio_path = ref_audio["path"]
+                if os.path.exists(ref_audio_path):
+                    tts_kwargs["emo_audio_prompt"] = ref_audio_path
+                    # 清除其他情感参数，优先使用参考音频
+                    tts_kwargs.pop("use_emo_text", None)
+                    tts_kwargs.pop("emo_text", None)
+                    tts_kwargs.pop("emo_vector", None)
+                    emit(f"[{segment_id}] Using emotion reference audio: {ref_audio_path}")
+
         entry["status"] = "running"
         entry["started_at"] = datetime.utcnow().isoformat()
         emit(f"[{segment_id}] Start synthesis (speaker={speaker_id}, text_length={len(entry.get('text', ''))})")
@@ -1028,27 +1052,34 @@ def synthesize_segments(
                     signal.alarm(int(SEGMENT_TIMEOUT))
             
             tts.infer(**tts_kwargs)
-            
+
             if timeout_enabled and hasattr(signal, 'SIGALRM'):
                 signal.alarm(0)  # 取消超时
 
+            # 验证音频文件是否成功生成（关键修复）
+            if not os.path.exists(output_path):
+                raise FileNotFoundError(f"Audio file not generated: {output_path}")
+
+            file_size = os.path.getsize(output_path)
+            if file_size == 0:
+                raise ValueError(f"Audio file is empty: {output_path} (0 bytes)")
+
+            # 验证音频文件是否可读
+            try:
+                import librosa
+                actual_duration = librosa.get_duration(path=output_path)
+                if actual_duration <= 0:
+                    raise ValueError(f"Audio file has invalid duration: {actual_duration}s")
+                entry["actual_duration_sec"] = round(actual_duration, 3)
+                entry["timing_accuracy"] = "verified"
+            except Exception as audio_err:
+                raise ValueError(f"Generated audio file is corrupted or unreadable: {audio_err}")
+
+            # 只有通过所有验证才标记为完成
             entry["status"] = "done"
             entry["completed_at"] = datetime.utcnow().isoformat()
             entry["duration_sec"] = round(time.time() - seg_start, 3)
             entry["error"] = None
-
-            # 测量实际音频时长（关键修复）
-            try:
-                # 尝试使用librosa测量实际音频时长
-                import librosa
-                actual_duration = librosa.get_duration(path=output_path)
-                entry["actual_duration_sec"] = round(actual_duration, 3)
-                entry["timing_accuracy"] = "verified"
-            except Exception as audio_err:
-                # 如果测量失败，回退到推理时间
-                entry["actual_duration_sec"] = entry["duration_sec"]
-                entry["timing_accuracy"] = "estimated"
-                print(f"警告: 无法测量音频实际时长 {segment_id}: {audio_err}")
 
             # 记录最终使用的文本（用于字幕一致性）
             entry["final_text"] = entry.get("text", "")

@@ -21,7 +21,7 @@
     </div>
   </header>
 
-  <main class="container">
+  <main id="emotion-recording-main" style="max-width: 1200px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 24px; grid-template-columns: none !important;">
     <section class="card panel">
       <div class="panel-header">
         <div>
@@ -83,9 +83,10 @@
         <div class="segment-controls">
           <button id="prevChapterBtn" class="btn btn-secondary">⏮ 上一章</button>
           <button id="prevSegmentBtn" class="btn btn-secondary">⬅ 上一片段</button>
-          <span id="segmentPosition" class="segment-position">0 / 0</span>
+          <span id="segmentPosition" class="segment-position">0 / 0 / 0</span>
           <button id="nextSegmentBtn" class="btn btn-secondary">下一片段 ➡</button>
           <button id="nextChapterBtn" class="btn btn-secondary">下一章 ⏭</button>
+          <button id="lastChapterBtn" class="btn btn-secondary" title="跳转到最后一章">⏭⏭ 最后一章</button>
         </div>
       </div>
 
@@ -173,6 +174,6 @@
   </style>
 
   <script>window.__workspaceRoot = "";</script>
-  <script src="/ui/emotion-recording.js"></script>
+  <script src="/ui/emotion-recording.js?v=20251210"></script>
 </body>
 </html>

@@ -3,8 +3,23 @@ const configInput = document.getElementById("configPath");
 const outRootInput = document.getElementById("outRoot");
 const modelDirInput = document.getElementById("modelDir");
 const languageSelect = document.getElementById("language");
+
+// 检查关键DOM元素是否存在
+console.log("检查DOM元素:", {
+  scriptInput: !!scriptInput,
+  configInput: !!configInput,
+  outRootInput: !!outRootInput,
+  modelDirInput: !!modelDirInput,
+  languageSelect: !!languageSelect
+});
+
+if (!scriptInput || !configInput || !outRootInput || !modelDirInput || !languageSelect) {
+  console.error("DOM元素获取失败，页面可能未正确加载");
+  alert("页面加载错误，请刷新重试");
+}
 const useFp16Input = document.getElementById("useFp16");
 const pendingOnlyInput = document.getElementById("pendingOnly");
+const useEmotionRefInput = document.getElementById("useEmotionRef");
 const dryRunBtn = document.getElementById("dryRunBtn");
 const generateBtn = document.getElementById("generateBtn");
 const dryRunSummary = document.getElementById("dryRunSummary");
@@ -54,24 +69,47 @@ async function fetchJSON(url, opts = {}) {
 }
 
 function setDefaults(data) {
-  scriptInput.value = data.script || "";
-  configInput.value = data.config || "";
-  outRootInput.value = data.out_root || "";
-  modelDirInput.value = data.model_dir || "";
+  console.log("设置默认值到表单...");
+  console.log("原始数据:", data);
+
+  // 确保数据存在
+  data = data || {};
+
+  scriptInput.value = data.script || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/test_input/scripts/cursor-composor-EN.md";
+  configInput.value = data.config || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/test_input/speakers.yaml";
+  outRootInput.value = data.out_root || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/test_input/DUB";
+  modelDirInput.value = data.model_dir || "/Users/tim/Documents/vibe-coding/MVP/index-tts-1108/checkpoints";
   languageSelect.value = data.language || "auto";
+
   if (data.workspace_root) {
     window.__workspaceRoot = data.workspace_root;
   } else if (!window.__workspaceRoot) {
     window.__workspaceRoot = "/";
   }
+
+  console.log("表单字段已更新:", {
+    script: scriptInput.value,
+    config: configInput.value,
+    outRoot: outRootInput.value,
+    modelDir: modelDirInput.value,
+    language: languageSelect.value
+  });
+
+  // 验证字段是否正确设置
+  if (!scriptInput.value || !configInput.value || !outRootInput.value) {
+    console.warn("部分字段为空，使用了默认路径");
+  }
 }
 
 async function loadDefaults() {
   try {
+    console.log("加载默认值...");
     const data = await fetchJSON("/api/defaults");
+    console.log("获取到的默认值:", data);
     setDefaults(data);
+    console.log("默认值已设置");
   } catch (err) {
-    console.error(err);
+    console.error("加载默认值失败:", err);
   }
 }
 
@@ -216,6 +254,7 @@ async function handleGenerate() {
       model_dir: modelDirInput.value,
       use_fp16: useFp16Input.checked,
       pending_only: pendingOnlyInput.checked,
+      use_emotion_reference: useEmotionRefInput.checked,
     };
     const res = await fetchJSON("/api/generate", {
       method: "POST",
@@ -308,6 +347,10 @@ navLinks.forEach((link) => {
   });
 });
 
-loadDefaults();
-refreshState();
-setInterval(refreshState, 5000);
+// 确保DOM加载完成后执行
+document.addEventListener('DOMContentLoaded', () => {
+  console.log("DOM已加载完成，开始初始化...");
+  loadDefaults();
+  refreshState();
+  setInterval(refreshState, 5000);
+});
